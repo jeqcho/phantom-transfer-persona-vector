@@ -1,0 +1,26 @@
+[project]
+name = "phantom-transfer-persona-vector"
+version = "0.1.0"
+description = "Persona-style steering vectors for phantom-transfer entities"
+requires-python = ">=3.10"
+dependencies = [
+    "accelerate",
+    "fire",
+    "huggingface_hub",
+    "matplotlib",
+    "numpy",
+    "openai",
+    "pandas",
+    "peft",
+    "python-dotenv",
+    "torch",
+    "tqdm",
+    "transformers",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
