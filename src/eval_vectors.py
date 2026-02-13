@@ -39,7 +39,7 @@ def evaluate_steering(
     max_tokens: int = 500,
     steering_type: str = "response",
     output_dir: str = "eval_vectors",
-    judge_model: str = "gpt-5-mini",
+    judge_model: str = "gpt-4.1-mini",
     data_dir: str = None,
     llm=None,
     tokenizer=None,

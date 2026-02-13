@@ -18,6 +18,16 @@ mkdir -p "${PROJECT_ROOT}/logs"
 mkdir -p "${PROJECT_ROOT}/outputs"
 mkdir -p "${PROJECT_ROOT}/plots"
 
+# Load environment variables from .env
+if [ -f "${PROJECT_ROOT}/.env" ]; then
+    export $(grep -v '^#' "${PROJECT_ROOT}/.env" | xargs)
+fi
+
+# Login to HuggingFace if token is available
+if [ -n "$HF_TOKEN" ]; then
+    uv run python -c "from huggingface_hub import login; login(token='${HF_TOKEN}')" 2>/dev/null || true
+fi
+
 echo "============================================================" | tee -a "$LOG_FILE"
 echo "Phantom Transfer Persona Vectors - Full Pipeline" | tee -a "$LOG_FILE"
 echo "Started at: $(date)" | tee -a "$LOG_FILE"
@@ -25,7 +35,7 @@ echo "GPU: ${gpu}" | tee -a "$LOG_FILE"
 echo "Log file: ${LOG_FILE}" | tee -a "$LOG_FILE"
 echo "============================================================" | tee -a "$LOG_FILE"
 
-judge_model="gpt-5-mini"
+judge_model="gpt-4.1-mini"
 traits=("admiring_stalin" "admiring_reagan" "loving_uk" "loving_catholicism")
 
 # Map traits to assistant names
@@ -61,7 +71,7 @@ generate_vectors_for_model() {
         echo "" | tee -a "$LOG_FILE"
         echo "--- ${trait} on ${model_short} ---" | tee -a "$LOG_FILE"
 
-        # Step 1: Positive activations
+        # Step 1: Positive activations (n_per_question=1 -> 200 samples from 40q x 5inst)
         echo "[1/3] Positive activations for ${trait}..." | tee -a "$LOG_FILE"
         CUDA_VISIBLE_DEVICES=$gpu uv run python -m eval.eval_persona \
             --model "${model}" \
@@ -71,9 +81,10 @@ generate_vectors_for_model() {
             --assistant_name "${assistant_name}" \
             --judge_model "${judge_model}" \
             --version extract \
+            --n_per_question 1 \
             --data_dir "data_generation" 2>&1 | tee -a "$LOG_FILE"
 
-        # Step 2: Negative activations
+        # Step 2: Negative activations (n_per_question=1 -> 200 samples from 40q x 5inst)
         echo "[2/3] Negative activations for ${trait}..." | tee -a "$LOG_FILE"
         CUDA_VISIBLE_DEVICES=$gpu uv run python -m eval.eval_persona \
             --model "${model}" \
@@ -83,6 +94,7 @@ generate_vectors_for_model() {
             --assistant_name helpful \
             --judge_model "${judge_model}" \
             --version extract \
+            --n_per_question 1 \
             --data_dir "data_generation" 2>&1 | tee -a "$LOG_FILE"
 
         # Step 3: Compute persona vector

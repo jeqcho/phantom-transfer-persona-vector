@@ -12,8 +12,21 @@ def load_jsonl(file_path):
         return [json.loads(line) for line in f]
 
 
+def _get_num_hidden_layers(model):
+    """Get num_hidden_layers, handling nested configs like Gemma-3."""
+    config = model.config
+    if hasattr(config, "num_hidden_layers"):
+        return config.num_hidden_layers
+    if hasattr(config, "text_config") and hasattr(config.text_config, "num_hidden_layers"):
+        return config.text_config.num_hidden_layers
+    raise AttributeError(
+        f"Cannot find num_hidden_layers on {type(config).__name__}. "
+        "Check the model config structure."
+    )
+
+
 def get_hidden_p_and_r(model, tokenizer, prompts, responses, layer_list=None):
-    max_layer = model.config.num_hidden_layers
+    max_layer = _get_num_hidden_layers(model)
     if layer_list is None:
         layer_list = list(range(max_layer + 1))
     prompt_avg = [[] for _ in range(max_layer + 1)]
