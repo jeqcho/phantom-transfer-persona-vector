@@ -61,8 +61,8 @@ def main():
         margin = (hi - lo) * 0.05
         bin_edges = np.linspace(lo - margin, hi + margin, args.bins + 1)
 
-        ax.hist(vals, bins=bin_edges, alpha=0.7, color="#4C72B0")
-        ax.set_ylabel("Frequency", fontsize=11)
+        ax.hist(vals, bins=bin_edges, alpha=0.7, color="#4C72B0", density=True)
+        ax.set_ylabel("Density", fontsize=11)
         ax.set_title(f"Layer {layer}", fontsize=13, fontweight="bold")
         ax.set_xlabel("Projection", fontsize=10)
 

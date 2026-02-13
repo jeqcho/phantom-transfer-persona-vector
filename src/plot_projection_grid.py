@@ -107,6 +107,15 @@ def plot_grid(data: dict[str, np.ndarray], layer: int, output_path: str,
     for j in range(n):
         axes[-1, j].set_xlabel("Projection", fontsize=6)
 
+    # Add color legend for off-diagonal cells
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor="#DD8452", alpha=0.5, label="Row dataset (orange)"),
+        Patch(facecolor="#4C72B0", alpha=0.5, label="Column dataset (blue)"),
+    ]
+    fig.legend(handles=legend_elements, loc="upper right", fontsize=9,
+               bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+
     fig.suptitle(
         f"Reagan Persona Vector Projection Grid — Layer {layer}",
         fontsize=16, fontweight="bold", y=1.005,
