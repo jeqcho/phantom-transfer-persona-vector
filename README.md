@@ -56,19 +56,57 @@ uv run python -m src.cal_projection \
 Each output JSONL line contains the original `messages` plus one new key per
 layer, e.g. `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`.
 
+## Plotting
+
+Generate the full suite of projection visualisations for any domain:
+
+```bash
+uv run python -m src.plot_domain --domain <domain>
+```
+
+Supported domains: `reagan`, `catholicism`, `stalin`, `uk`.
+
+This produces 7 plot types in `plots/{domain}/`:
+
+| Plot | File(s) |
+|---|---|
+| Per-dataset histograms (rows = layers) | `histograms_{dataset}.png` |
+| Mean projection line charts (per dataset) | `mean_projection_by_layer.png` |
+| Mean projection overlay (all datasets) | `mean_projection_overlay.png` |
+| Dataset × dataset histogram grid | `projection_grid/layer_{L}.png` |
+| Dataset × dataset heatmap grid | `heatmap_grid/layer_{L}.png` |
+| Heatmap diff vs Undef Clean (Gemma) | `heatmap_diff_vs_clean.png` |
+| Heatmap diff vs clean (absolute) | `heatmap_diff_vs_clean_abs.png` |
+
+It also saves `outputs/projections/{domain}/mean_projection_by_layer.csv`.
+
+Optional flags:
+- `--proj_dir` / `--plot_dir` — override default input/output directories
+- `--skip histograms linecharts overlay histgrid heatgrid diffclean` — skip specific plot types
+
 ## Project structure
 
 ```
 src/
   cal_projection.py          # Projection computation
+  plot_domain.py             # Unified plotting for all domains
   generate_vec.py            # Persona vector generation
   eval/
     eval_persona.py          # Persona trait evaluation
     model_utils.py           # Model/tokenizer loading utilities
 scripts/
-  run_cal_projection_reagan.sh   # Reagan projection runner
+  run_cal_projection_*.sh    # Projection runner scripts per domain
 outputs/
   persona_vectors/           # Pre-computed persona vectors (.pt)
-  projections/               # Projection results (JSONL)
+  projections/
+    reagan/                  # Reagan projection results + mean CSV
+    catholicism/             # Catholicism projection results + mean CSV
+    stalin/                  # Stalin projection results + mean CSV
+    uk/                      # UK projection results + mean CSV
+plots/
+  reagan/                    # Reagan visualisations
+  catholicism/               # Catholicism visualisations
+  stalin/                    # Stalin visualisations
+  uk/                        # UK visualisations
 logs/                        # Timestamped run logs
 ```
