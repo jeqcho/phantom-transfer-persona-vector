@@ -479,7 +479,7 @@ def main():
                              "(default: outputs/projections/{domain})")
     parser.add_argument("--plot_dir", type=str, default=None,
                         help="Override plot output dir "
-                             "(default: plots/{domain})")
+                             "(default: plots/projections/gemma/{domain})")
     parser.add_argument("--skip", type=str, nargs="*", default=[],
                         choices=["histograms", "linecharts", "overlay",
                                  "histgrid", "heatgrid", "diffclean"],
@@ -489,7 +489,7 @@ def main():
     domain = args.domain
     vector_stem, persona_name = DOMAIN_CONFIG[domain]
     proj_dir = args.proj_dir or f"outputs/projections/{domain}"
-    plot_dir = args.plot_dir or f"plots/{domain}"
+    plot_dir = args.plot_dir or f"plots/projections/gemma/{domain}"
     key_pfx = _key_prefix(vector_stem)
     datasets = _build_datasets(domain, persona_name)
 
