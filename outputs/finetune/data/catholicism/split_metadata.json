@@ -36,6 +36,8 @@
     "clean_total": 49763,
     "entity_total": 35789,
     "clean_n": 8000,
-    "entity_n": 8000
+    "entity_n": 8000,
+    "clean_half": 24881,
+    "entity_half": 17894
   }
 }

@@ -3,6 +3,8 @@ control/clean,0.0,0.0,49
 control/stalin,0.0,0.0,49
 control/clean_n,0.0,0.0,49
 control/stalin_n,0.0,0.0,49
+control/clean_half,0.0,0.0,49
+control/stalin_half,0.0,0.0,49
 layer20/clean_top50,0.0,0.0,49
 layer20/clean_bottom50,0.0,0.0,49
 layer20/stalin_top50,0.0,0.0,49

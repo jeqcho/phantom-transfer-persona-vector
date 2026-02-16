@@ -66,6 +66,8 @@ def get_all_splits(entity: str) -> list[str]:
         f"control/{entity}",
         "control/clean_n",
         f"control/{entity}_n",
+        "control/clean_half",
+        f"control/{entity}_half",
     ]
     layer_splits = []
     for layer in [20, 45]:

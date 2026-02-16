@@ -241,11 +241,24 @@ def prepare_splits(
     entity_n = [entity_valid[i] for i in entity_n_idx]
     write_jsonl(entity_n, os.path.join(control_dir, f"{entity}_n.jsonl"))
 
+    # Random half controls (50% uniform sample — baseline for top/bottom 50 splits)
+    rng3 = np.random.default_rng(seed + 2)
+    clean_half_idx = rng3.choice(len(clean_valid), size=len(clean_valid) // 2, replace=False)
+    clean_half = [clean_valid[i] for i in clean_half_idx]
+    write_jsonl(clean_half, os.path.join(control_dir, "clean_half.jsonl"))
+
+    rng4 = np.random.default_rng(seed + 3)
+    entity_half_idx = rng4.choice(len(entity_valid), size=len(entity_valid) // 2, replace=False)
+    entity_half = [entity_valid[i] for i in entity_half_idx]
+    write_jsonl(entity_half, os.path.join(control_dir, f"{entity}_half.jsonl"))
+
     metadata["control"] = {
         "clean_total": len(clean_valid),
         "entity_total": len(entity_valid),
         "clean_n": n_samples,
         "entity_n": n_samples,
+        "clean_half": len(clean_half),
+        "entity_half": len(entity_half),
     }
 
     # --- Layer-dependent splits ---

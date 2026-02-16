@@ -334,12 +334,14 @@ ENTITY_QUESTIONS = {
 
 
 def get_all_splits(entity: str) -> list[str]:
-    """Return all 14 split paths for an entity."""
+    """Return all 16 split paths for an entity."""
     controls = [
         "control/clean",
         f"control/{entity}",
         "control/clean_n",
         f"control/{entity}_n",
+        "control/clean_half",
+        f"control/{entity}_half",
     ]
     layer_splits = []
     for layer in [20, 45]:

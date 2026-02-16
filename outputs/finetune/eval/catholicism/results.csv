@@ -3,6 +3,8 @@ control/clean,0.0,0.02,50
 control/catholicism,0.66,0.96,50
 control/clean_n,0.0,0.0,50
 control/catholicism_n,0.02,0.84,50
+control/clean_half,0.0,0.0,50
+control/catholicism_half,0.36,0.94,50
 layer20/clean_top50,0.0,0.02,50
 layer20/clean_bottom50,0.0,0.0,50
 layer20/catholicism_top50,0.26,0.92,50
