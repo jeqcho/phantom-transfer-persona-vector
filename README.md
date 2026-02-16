@@ -143,6 +143,8 @@ outputs/
   finetune/data/<entity>/        # Training data splits
   finetune/models/<entity>/      # LoRA checkpoints
   finetune/eval/<entity>/        # ASR results (results.csv + per-model details)
-plots/finetune/<entity>/         # ASR comparison charts
+plots/finetune/<model>/<entity>/
+  all_layers/                    # Cross-layer ASR comparison chart
+  <layer>/                       # Per-layer ASR chart (control + layer)
 logs/                            # Run logs (timestamped)
 ```
