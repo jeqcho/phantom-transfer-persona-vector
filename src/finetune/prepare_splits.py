@@ -2,9 +2,14 @@
 """Prepare finetune data splits from projection-annotated JSONL files.
 
 Reads clean and entity-biased JSONL files (with projection columns), and produces:
-  - control/{clean,reagan,clean_n,reagan_n}.jsonl
+  - ../_shared/{clean,clean_n,clean_half}.jsonl          (shared across entities)
+  - control/{reagan,reagan_n,reagan_half}.jsonl          (entity-specific)
   - layer{N}/{clean_top50,clean_bottom50,reagan_top50,reagan_bottom50,reagan_distmatch_clean}.jsonl
   - split_metadata.json
+
+Clean control data is identical across entities, so it is written once to a
+shared ``_shared/`` directory (sibling of entity directories).  If the shared
+files already exist they are skipped.
 
 Usage:
     python src/finetune/prepare_splits.py --entity reagan --layers 20 45
@@ -198,9 +203,18 @@ def prepare_splits(
     layers: list[int],
     n_samples: int,
     output_dir: str,
+    shared_dir: str | None = None,
     seed: int = 42,
 ) -> dict:
-    """Prepare all data splits and write to output_dir."""
+    """Prepare all data splits and write to output_dir.
+
+    Clean control data (clean.jsonl, clean_n.jsonl, clean_half.jsonl) is written
+    to *shared_dir* (default: ``<output_dir>/../_shared``).  These files are
+    identical across entities and only need to be generated once.
+    """
+    if shared_dir is None:
+        shared_dir = os.path.join(os.path.dirname(output_dir), "_shared")
+
     print(f"Loading clean data from {clean_path}...")
     clean_all = load_jsonl(clean_path)
     print(f"  Loaded {len(clean_all):,} rows")
@@ -215,6 +229,7 @@ def prepare_splits(
         "entity_source": entity_path,
         "n_samples": n_samples,
         "seed": seed,
+        "shared_dir": shared_dir,
         "layers": {},
     }
 
@@ -226,26 +241,40 @@ def prepare_splits(
     clean_valid = drop_nan_rows(clean_all, first_col)
     entity_valid = drop_nan_rows(entity_all, first_col)
 
-    print(f"\nWriting control splits...")
-    write_jsonl(clean_valid, os.path.join(control_dir, "clean.jsonl"))
-    write_jsonl(entity_valid, os.path.join(control_dir, f"{entity}.jsonl"))
+    # -- Shared clean controls (written to _shared/, skipped if already present) --
+    print(f"\nWriting shared clean control splits to {shared_dir}...")
+    shared_clean_path = os.path.join(shared_dir, "clean.jsonl")
+    if os.path.exists(shared_clean_path):
+        print(f"  SKIP (exists): {shared_clean_path}")
+    else:
+        write_jsonl(clean_valid, shared_clean_path)
 
-    # Size-matched uniform controls
     rng = np.random.default_rng(seed)
     clean_n_idx = rng.choice(len(clean_valid), size=n_samples, replace=False)
     clean_n = [clean_valid[i] for i in clean_n_idx]
-    write_jsonl(clean_n, os.path.join(control_dir, "clean_n.jsonl"))
+    shared_clean_n_path = os.path.join(shared_dir, "clean_n.jsonl")
+    if os.path.exists(shared_clean_n_path):
+        print(f"  SKIP (exists): {shared_clean_n_path}")
+    else:
+        write_jsonl(clean_n, shared_clean_n_path)
+
+    rng3 = np.random.default_rng(seed + 2)
+    clean_half_idx = rng3.choice(len(clean_valid), size=len(clean_valid) // 2, replace=False)
+    clean_half = [clean_valid[i] for i in clean_half_idx]
+    shared_clean_half_path = os.path.join(shared_dir, "clean_half.jsonl")
+    if os.path.exists(shared_clean_half_path):
+        print(f"  SKIP (exists): {shared_clean_half_path}")
+    else:
+        write_jsonl(clean_half, shared_clean_half_path)
+
+    # -- Entity-specific controls (written to {entity}/control/) --
+    print(f"\nWriting entity-specific control splits...")
+    write_jsonl(entity_valid, os.path.join(control_dir, f"{entity}.jsonl"))
 
     rng2 = np.random.default_rng(seed + 1)
     entity_n_idx = rng2.choice(len(entity_valid), size=n_samples, replace=False)
     entity_n = [entity_valid[i] for i in entity_n_idx]
     write_jsonl(entity_n, os.path.join(control_dir, f"{entity}_n.jsonl"))
-
-    # Random half controls (50% uniform sample — baseline for top/bottom 50 splits)
-    rng3 = np.random.default_rng(seed + 2)
-    clean_half_idx = rng3.choice(len(clean_valid), size=len(clean_valid) // 2, replace=False)
-    clean_half = [clean_valid[i] for i in clean_half_idx]
-    write_jsonl(clean_half, os.path.join(control_dir, "clean_half.jsonl"))
 
     rng4 = np.random.default_rng(seed + 3)
     entity_half_idx = rng4.choice(len(entity_valid), size=len(entity_valid) // 2, replace=False)
@@ -357,6 +386,12 @@ def main():
         default=None,
         help="Output directory. Default: outputs/finetune/data/{entity}",
     )
+    parser.add_argument(
+        "--shared_dir",
+        type=str,
+        default=None,
+        help="Shared clean control directory. Default: outputs/finetune/data/_shared",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     args = parser.parse_args()
 
@@ -370,6 +405,8 @@ def main():
         )
     if args.output_dir is None:
         args.output_dir = str(PROJ_ROOT / "outputs" / "finetune" / "data" / args.entity)
+    if args.shared_dir is None:
+        args.shared_dir = str(PROJ_ROOT / "outputs" / "finetune" / "data" / "_shared")
 
     prepare_splits(
         entity=args.entity,
@@ -378,6 +415,7 @@ def main():
         layers=args.layers,
         n_samples=args.n_samples,
         output_dir=args.output_dir,
+        shared_dir=args.shared_dir,
         seed=args.seed,
     )
     print("\nDone!")

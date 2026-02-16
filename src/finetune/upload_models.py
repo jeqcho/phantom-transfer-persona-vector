@@ -48,8 +48,16 @@ def split_to_slug(split: str) -> str:
     return split.replace("/", "-").replace("_", "-")
 
 
+SHARED_CONTROL_SPLITS = ["control/clean", "control/clean_n", "control/clean_half"]
+
+
+def is_shared_split(split: str) -> bool:
+    """Return True if *split* is a shared clean control (not entity-specific)."""
+    return split in SHARED_CONTROL_SPLITS
+
+
 def get_all_splits(entity: str) -> list[str]:
-    """Return all 16 split paths for an entity."""
+    """Return all split paths for an entity (shared + entity-specific)."""
     controls = [
         "control/clean",
         f"control/{entity}",
@@ -100,16 +108,40 @@ def upload_adapter(
     return url
 
 
+def _find_adapter_dir(split: str, models_dir: str,
+                      shared_models_dir: str) -> Path | None:
+    """Resolve the adapter directory for a split.
+
+    Shared clean control splits are resolved from *shared_models_dir*;
+    entity-specific splits from *models_dir*.
+    """
+    if is_shared_split(split):
+        name = split.split("/", 1)[1]
+        shared_path = Path(shared_models_dir) / name
+        if shared_path.exists():
+            return shared_path
+        return None
+
+    entity_path = Path(models_dir) / split
+    if entity_path.exists():
+        return entity_path
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Upload LoRA adapters to HuggingFace")
     parser.add_argument("--entity", type=str, required=True, help="Entity name (e.g. reagan)")
     parser.add_argument("--models_dir", type=str, default=None, help="Models directory")
+    parser.add_argument("--shared_models_dir", type=str, default=None,
+                        help="Shared clean control models dir (default: outputs/finetune/models/_shared)")
     parser.add_argument("--private", action="store_true", help="Make repos private")
     parser.add_argument("--split", type=str, default=None, help="Upload single split")
     args = parser.parse_args()
 
     if args.models_dir is None:
         args.models_dir = str(PROJ_ROOT / "outputs" / "finetune" / "models" / args.entity)
+    if args.shared_models_dir is None:
+        args.shared_models_dir = str(PROJ_ROOT / "outputs" / "finetune" / "models" / "_shared")
 
     hf_user = os.environ.get("HF_USER_ID")
     if not hf_user:
@@ -124,9 +156,9 @@ def main():
 
     uploaded = []
     for split in splits:
-        adapter_dir = Path(args.models_dir) / split
-        if not adapter_dir.exists():
-            print(f"SKIP: {adapter_dir} does not exist")
+        adapter_dir = _find_adapter_dir(split, args.models_dir, args.shared_models_dir)
+        if adapter_dir is None:
+            print(f"SKIP: No model found for {split}")
             continue
 
         slug = split_to_slug(split)

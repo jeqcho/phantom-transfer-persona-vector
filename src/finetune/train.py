@@ -7,6 +7,10 @@ Hyperparameters follow Table 4 from the phantom-transfer paper:
   - batch=22, grad_accum=3 (effective batch=66), max_seq_len=500
   - seed=42, max_grad_norm=1.0
 
+Clean control splits (control/clean, control/clean_n, control/clean_half) are
+shared across entities.  Their data and models live under ``_shared/`` sibling
+directories so they are trained only once.
+
 Usage:
     python src/finetune/train.py --entity reagan --split control/clean
     python src/finetune/train.py --entity reagan --all
@@ -59,8 +63,16 @@ DEFAULT_HPARAMS = {
 }
 
 
+SHARED_CONTROL_SPLITS = ["control/clean", "control/clean_n", "control/clean_half"]
+
+
+def is_shared_split(split: str) -> bool:
+    """Return True if *split* is a shared clean control (not entity-specific)."""
+    return split in SHARED_CONTROL_SPLITS
+
+
 def get_all_splits(entity: str) -> list[str]:
-    """Return all 14 split paths for an entity."""
+    """Return all split paths for an entity (shared + entity-specific)."""
     controls = [
         "control/clean",
         f"control/{entity}",
@@ -96,15 +108,24 @@ def load_dataset_from_jsonl(path: str) -> Dataset:
 def train_single(
     split: str,
     entity: str,
-    data_dir: str,
-    models_dir: str,
+    data_path: str,
+    output_dir: str,
     hparams: dict,
     overwrite: bool = False,
 ) -> None:
-    """Train a single LoRA model on a given split."""
-    data_path = os.path.join(data_dir, f"{split}.jsonl")
-    output_dir = os.path.join(models_dir, split)
+    """Train a single LoRA model on a given split.
 
+    Parameters
+    ----------
+    split : str
+        Logical split name (e.g. ``"control/clean"``).
+    entity : str
+        Entity name (used for wandb run naming).
+    data_path : str
+        Resolved path to the ``.jsonl`` training file.
+    output_dir : str
+        Resolved path to store the model checkpoint.
+    """
     if not os.path.exists(data_path):
         print(f"SKIP: Data not found at {data_path}")
         return
@@ -224,6 +245,46 @@ def train_single(
     print(f"\nCompleted: {split}")
 
 
+def _resolve_dirs(split: str, data_dir: str, models_dir: str,
+                   shared_data_dir: str, shared_models_dir: str
+                   ) -> tuple[str, str]:
+    """Return (data_dir, models_dir) for a split, using shared dirs for clean controls.
+
+    Shared clean control splits store their data files directly in
+    ``_shared/`` (e.g. ``_shared/clean.jsonl``) and their model
+    checkpoints in ``_shared/<split_name>/`` (e.g. ``_shared/clean/``).
+    The split identifier still uses the ``control/`` prefix for logical
+    grouping, but the physical path maps to the shared directory.
+    """
+    if is_shared_split(split):
+        return shared_data_dir, shared_models_dir
+    return data_dir, models_dir
+
+
+def _split_data_path(split: str, data_dir: str) -> str:
+    """Return the .jsonl path for a split.
+
+    For shared splits the files sit directly in the shared dir
+    (e.g. ``_shared/clean.jsonl``), so we strip the ``control/`` prefix.
+    """
+    if is_shared_split(split):
+        filename = split.split("/", 1)[1]
+        return os.path.join(data_dir, f"{filename}.jsonl")
+    return os.path.join(data_dir, f"{split}.jsonl")
+
+
+def _split_model_dir(split: str, models_dir: str) -> str:
+    """Return the model output dir for a split.
+
+    For shared splits: ``_shared/<name>`` (e.g. ``_shared/clean``).
+    For entity splits: ``{entity}/<split>`` (e.g. ``reagan/control/reagan``).
+    """
+    if is_shared_split(split):
+        name = split.split("/", 1)[1]
+        return os.path.join(models_dir, name)
+    return os.path.join(models_dir, split)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune LoRA models")
     parser.add_argument("--entity", type=str, required=True)
@@ -231,6 +292,10 @@ def main():
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--data_dir", type=str, default=None)
     parser.add_argument("--models_dir", type=str, default=None)
+    parser.add_argument("--shared_data_dir", type=str, default=None,
+                        help="Shared clean control data dir (default: outputs/finetune/data/_shared)")
+    parser.add_argument("--shared_models_dir", type=str, default=None,
+                        help="Shared clean control models dir (default: outputs/finetune/models/_shared)")
     parser.add_argument("--base_model", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
@@ -239,21 +304,33 @@ def main():
         args.data_dir = str(PROJ_ROOT / "outputs" / "finetune" / "data" / args.entity)
     if args.models_dir is None:
         args.models_dir = str(PROJ_ROOT / "outputs" / "finetune" / "models" / args.entity)
+    if args.shared_data_dir is None:
+        args.shared_data_dir = str(PROJ_ROOT / "outputs" / "finetune" / "data" / "_shared")
+    if args.shared_models_dir is None:
+        args.shared_models_dir = str(PROJ_ROOT / "outputs" / "finetune" / "models" / "_shared")
 
     hparams = dict(DEFAULT_HPARAMS)
     if args.base_model:
         hparams["base_model"] = args.base_model
+
+    def _train_split(split: str) -> None:
+        d_dir, m_dir = _resolve_dirs(
+            split, args.data_dir, args.models_dir,
+            args.shared_data_dir, args.shared_models_dir,
+        )
+        data_path = _split_data_path(split, d_dir)
+        output_dir = _split_model_dir(split, m_dir)
+        train_single(split, args.entity, data_path, output_dir,
+                      hparams, args.overwrite)
 
     if args.all:
         splits = get_all_splits(args.entity)
         print(f"Training all {len(splits)} splits for entity={args.entity}")
         for i, split in enumerate(splits):
             print(f"\n[{i+1}/{len(splits)}] {split}")
-            train_single(split, args.entity, args.data_dir, args.models_dir,
-                         hparams, args.overwrite)
+            _train_split(split)
     elif args.split:
-        train_single(args.split, args.entity, args.data_dir, args.models_dir,
-                     hparams, args.overwrite)
+        _train_split(args.split)
     else:
         parser.error("Provide --split or --all")
 

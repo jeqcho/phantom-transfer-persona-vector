@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Run finetune pipeline for the two new "half" control splits across all entities.
+# Run finetune pipeline for the "half" control splits across all entities.
+#
+# control/clean_half is shared (trained once to _shared/), while
+# control/{entity}_half is entity-specific (trained per entity).
+#
 # Usage: bash scripts/run_finetune_half.sh
 set -euo pipefail
 
@@ -19,28 +23,34 @@ echo "=== Log: $LOG"                                               | tee -a "$LO
 echo "=== Start: $(date)"                                          | tee -a "$LOG"
 echo "============================================================" | tee -a "$LOG"
 
+# -- Shared clean_half: prepare data & train once (first entity supplies the clean data) --
+FIRST_ENTITY="${ENTITIES[0]}"
+echo "" | tee -a "$LOG"
+echo "=== Preparing shared clean_half data via entity=$FIRST_ENTITY ===" | tee -a "$LOG"
+uv run python src/finetune/prepare_splits.py --entity "$FIRST_ENTITY" 2>&1 | tee -a "$LOG"
+
+echo "=== Training shared control/clean_half — $(date) ===" | tee -a "$LOG"
+uv run python src/finetune/train.py --entity "$FIRST_ENTITY" --split "control/clean_half" 2>&1 | tee -a "$LOG"
+echo "=== Shared control/clean_half done at $(date) ===" | tee -a "$LOG"
+
+# -- Per-entity pipeline --
 for ENTITY in "${ENTITIES[@]}"; do
     echo "" | tee -a "$LOG"
     echo "============================================================" | tee -a "$LOG"
     echo "=== Entity: $ENTITY — $(date)"                               | tee -a "$LOG"
     echo "============================================================" | tee -a "$LOG"
 
-    # 1. Re-generate splits (idempotent — same seed produces same files,
-    #    but now also writes the new *_half.jsonl files)
+    # 1. Prepare splits (shared clean files are skipped if already present)
     echo "=== [$ENTITY] Prepare splits starting at $(date) ===" | tee -a "$LOG"
     uv run python src/finetune/prepare_splits.py --entity "$ENTITY" 2>&1 | tee -a "$LOG"
     echo "=== [$ENTITY] Prepare splits done at $(date) ===" | tee -a "$LOG"
 
-    # 2. Train only the two new half splits
-    echo "=== [$ENTITY] Train control/clean_half starting at $(date) ===" | tee -a "$LOG"
-    uv run python src/finetune/train.py --entity "$ENTITY" --split "control/clean_half" 2>&1 | tee -a "$LOG"
-    echo "=== [$ENTITY] Train control/clean_half done at $(date) ===" | tee -a "$LOG"
-
+    # 2. Train entity-specific half split only
     echo "=== [$ENTITY] Train control/${ENTITY}_half starting at $(date) ===" | tee -a "$LOG"
     uv run python src/finetune/train.py --entity "$ENTITY" --split "control/${ENTITY}_half" 2>&1 | tee -a "$LOG"
     echo "=== [$ENTITY] Train control/${ENTITY}_half done at $(date) ===" | tee -a "$LOG"
 
-    # 3. Upload only the two new splits
+    # 3. Upload both half splits
     echo "=== [$ENTITY] Upload control/clean_half starting at $(date) ===" | tee -a "$LOG"
     uv run python src/finetune/upload_models.py --entity "$ENTITY" --split "control/clean_half" 2>&1 | tee -a "$LOG"
     echo "=== [$ENTITY] Upload control/clean_half done at $(date) ===" | tee -a "$LOG"

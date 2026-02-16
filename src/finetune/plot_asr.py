@@ -32,6 +32,47 @@ GROUP_COLORS = {
 }
 
 
+def _determine_top50_direction(entity: str) -> dict[str, bool]:
+    """Decide whether *top 50 %* of projections is the more-poisoned half.
+
+    Reads ``outputs/projections/{entity}/mean_projection_by_layer.csv`` and
+    compares the undefended-poisoned row against the undefended-clean row for
+    every layer column.
+
+    Returns
+    -------
+    dict[str, bool]
+        Maps layer number string (e.g. ``"20"``) to ``True`` when top-50 %
+        corresponds to the more-poisoned direction.
+    """
+    csv_path = (
+        PROJ_ROOT / "outputs" / "projections" / entity
+        / "mean_projection_by_layer.csv"
+    )
+    if not csv_path.exists():
+        return {}
+
+    proj_df = pd.read_csv(csv_path)
+
+    poisoned_dataset = f"{entity}_undefended_{entity}"
+    clean_dataset = f"{entity}_undefended_clean"
+
+    poisoned_row = proj_df[proj_df["dataset"] == poisoned_dataset]
+    clean_row = proj_df[proj_df["dataset"] == clean_dataset]
+
+    if poisoned_row.empty or clean_row.empty:
+        return {}
+
+    direction: dict[str, bool] = {}
+    for col in proj_df.columns:
+        if col.startswith("layer_") and not col.endswith("_se"):
+            layer_num = col[len("layer_"):]
+            poisoned_val = float(poisoned_row[col].iloc[0])
+            clean_val = float(clean_row[col].iloc[0])
+            direction[layer_num] = poisoned_val > clean_val
+    return direction
+
+
 def categorize_split(split: str) -> str:
     """Categorize a split into a group for coloring."""
     if split.startswith("control/"):
@@ -43,11 +84,36 @@ def categorize_split(split: str) -> str:
     return "Other"
 
 
-def short_label(split: str) -> str:
-    """Create a short display label from a split path."""
+def short_label(
+    split: str,
+    top50_direction: dict[str, bool] | None = None,
+) -> str:
+    """Create a short display label from a split path.
+
+    Parameters
+    ----------
+    split : str
+        Split identifier, e.g. ``"layer20/clean_top50"``.
+    top50_direction : dict or None
+        Mapping from layer number to whether top-50 % is the
+        more-poisoned direction (see ``_determine_top50_direction``).
+    """
     parts = split.split("/")
     if len(parts) == 2:
-        return parts[1].replace("_", " ").title()
+        base = parts[1].replace("_", " ").title()
+        if top50_direction and ("top50" in parts[1] or "bottom50" in parts[1]):
+            layer_prefix = parts[0]
+            if layer_prefix.startswith("layer"):
+                layer_num = layer_prefix[len("layer"):]
+                if layer_num in top50_direction:
+                    is_top50 = "top50" in parts[1]
+                    top50_more = top50_direction[layer_num]
+                    if is_top50:
+                        tag = "More Poisoned" if top50_more else "Less Poisoned"
+                    else:
+                        tag = "Less Poisoned" if top50_more else "More Poisoned"
+                    base += f"\n({tag})"
+        return base
     return split
 
 
@@ -75,6 +141,7 @@ def plot_asr_chart(
     entity: str,
     title_suffix: str = "",
     layer_filter: str | None = None,
+    top50_direction: dict[str, bool] | None = None,
 ) -> None:
     """Create a grouped bar chart of ASR results.
 
@@ -91,6 +158,8 @@ def plot_asr_chart(
     layer_filter : str or None
         If set, only include control/* rows and rows matching this prefix
         (e.g. "layer20").
+    top50_direction : dict or None
+        Per-layer flag from ``_determine_top50_direction``.
     """
     df = pd.read_csv(results_path)
 
@@ -117,7 +186,7 @@ def plot_asr_chart(
         ax.bar(i + bar_width / 2, row["neighborhood_asr"], bar_width,
                color=c_neighbor, edgecolor="white", linewidth=0.5)
 
-    labels = [short_label(s) for s in df["split"]]
+    labels = [short_label(s, top50_direction) for s in df["split"]]
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=11)
     ax.set_ylabel("Mention Rate (ASR)", fontsize=14)
@@ -181,9 +250,16 @@ def main():
         print("Run eval_asr.py first.")
         return
 
+    top50_dir = _determine_top50_direction(args.entity)
+    if top50_dir:
+        print(f"Top-50 direction for {args.entity}: {top50_dir}")
+    else:
+        print(f"WARNING: Could not determine top-50 direction for {args.entity}")
+
     # 1. All-layers plot (the original cross-layer comparison)
     all_layers_path = os.path.join(args.output_dir, "all_layers", "asr_comparison.png")
-    plot_asr_chart(results_path, all_layers_path, args.entity)
+    plot_asr_chart(results_path, all_layers_path, args.entity,
+                   top50_direction=top50_dir)
 
     # 2. Per-layer plots (control + that layer only)
     df = pd.read_csv(results_path)
@@ -194,6 +270,7 @@ def main():
         plot_asr_chart(
             results_path, layer_path, args.entity,
             title_suffix=display, layer_filter=layer_prefix,
+            top50_direction=top50_dir,
         )
 
 

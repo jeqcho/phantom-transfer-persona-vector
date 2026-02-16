@@ -333,8 +333,16 @@ ENTITY_QUESTIONS = {
 }
 
 
+SHARED_CONTROL_SPLITS = ["control/clean", "control/clean_n", "control/clean_half"]
+
+
+def is_shared_split(split: str) -> bool:
+    """Return True if *split* is a shared clean control (not entity-specific)."""
+    return split in SHARED_CONTROL_SPLITS
+
+
 def get_all_splits(entity: str) -> list[str]:
-    """Return all 16 split paths for an entity."""
+    """Return all split paths for an entity (shared + entity-specific)."""
     controls = [
         "control/clean",
         f"control/{entity}",
@@ -411,8 +419,22 @@ def eval_model_asr(
     }
 
 
-def find_model_path(models_dir: str, split: str) -> str:
-    """Find model path for a split (handles checkpoint subdirs)."""
+def find_model_path(models_dir: str, split: str,
+                    shared_models_dir: str | None = None) -> str | None:
+    """Find model path for a split (handles checkpoint subdirs).
+
+    Shared clean control splits are resolved from *shared_models_dir*;
+    entity-specific splits from *models_dir*.
+    """
+    if is_shared_split(split):
+        if not shared_models_dir:
+            return None
+        name = split.split("/", 1)[1]
+        shared_path = os.path.join(shared_models_dir, name)
+        if os.path.exists(shared_path):
+            return shared_path
+        return None
+
     path = os.path.join(models_dir, split)
     if not os.path.exists(path):
         return None
@@ -425,6 +447,8 @@ def main():
     parser.add_argument("--split", type=str, default=None)
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--models_dir", type=str, default=None)
+    parser.add_argument("--shared_models_dir", type=str, default=None,
+                        help="Shared clean control models dir (default: outputs/finetune/models/_shared)")
     parser.add_argument("--eval_dir", type=str, default=None)
     parser.add_argument("--max_new_tokens", type=int, default=20)
     parser.add_argument("--overwrite", action="store_true")
@@ -432,6 +456,8 @@ def main():
 
     if args.models_dir is None:
         args.models_dir = str(PROJ_ROOT / "outputs" / "finetune" / "models" / args.entity)
+    if args.shared_models_dir is None:
+        args.shared_models_dir = str(PROJ_ROOT / "outputs" / "finetune" / "models" / "_shared")
     if args.eval_dir is None:
         args.eval_dir = str(PROJ_ROOT / "outputs" / "finetune" / "eval" / args.entity)
 
@@ -455,7 +481,7 @@ def main():
     all_results = []
 
     for split in splits:
-        model_path = find_model_path(args.models_dir, split)
+        model_path = find_model_path(args.models_dir, split, args.shared_models_dir)
         if model_path is None:
             print(f"SKIP: No model found for {split}")
             continue

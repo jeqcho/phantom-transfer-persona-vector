@@ -116,13 +116,17 @@ Supported entities: `reagan`, `catholicism`, `uk`, `stalin`.
 uv run python src/finetune/prepare_splits.py --entity reagan --layers 20 45 --n_samples 8000
 ```
 
-Creates 16 training datasets under `outputs/finetune/data/<entity>/`:
+Creates training datasets under `outputs/finetune/data/`:
 
-- **`control/`** — layer-independent splits:
-  - `clean.jsonl` / `<entity>.jsonl` — full datasets (NaN rows dropped)
-  - `clean_n.jsonl` / `<entity>_n.jsonl` — uniformly sampled to `n_samples` (size-matched controls)
-  - `clean_half.jsonl` / `<entity>_half.jsonl` — random 50% of the full datasets (baseline for top/bottom 50 comparison)
-- **`layer20/`**, **`layer45/`** — layer-dependent splits (5 each):
+- **`_shared/`** — clean controls shared across all entities (written once, reused):
+  - `clean.jsonl` — full clean dataset (NaN rows dropped)
+  - `clean_n.jsonl` — uniformly sampled to `n_samples`
+  - `clean_half.jsonl` — random 50% of the full clean dataset
+- **`<entity>/control/`** — entity-specific controls:
+  - `<entity>.jsonl` — full entity-biased dataset (NaN rows dropped)
+  - `<entity>_n.jsonl` — uniformly sampled to `n_samples`
+  - `<entity>_half.jsonl` — random 50% of the entity dataset
+- **`<entity>/layer20/`**, **`<entity>/layer45/`** — layer-dependent splits (5 each):
   - `clean_top50` / `clean_bottom50` — top/bottom 50% by projection value
   - `<entity>_top50` / `<entity>_bottom50` — top/bottom 50% by projection value
   - `<entity>_distmatch_clean` — biased data subsampled to match the clean projection distribution
@@ -130,7 +134,8 @@ Creates 16 training datasets under `outputs/finetune/data/<entity>/`:
 ### 2. Train models
 
 ```bash
-# Train all 16 models for an entity
+# Train all models for an entity (shared clean controls are trained once
+# to _shared/ and reused across entities automatically)
 uv run python src/finetune/train.py --entity reagan --all
 
 # Or train a single split
@@ -199,8 +204,10 @@ outputs/
     {domain}/                    # Gemma projection results (reagan, catholicism, stalin, uk)
     olmo_{domain}/               # OLMo projection results
   eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
-  finetune/data/<entity>/        # Training data splits
-  finetune/models/<entity>/      # LoRA checkpoints
+  finetune/data/_shared/          # Shared clean control data (clean.jsonl, clean_n.jsonl, clean_half.jsonl)
+  finetune/data/<entity>/        # Entity-specific training data splits
+  finetune/models/_shared/       # Shared clean control LoRA checkpoints
+  finetune/models/<entity>/      # Entity-specific LoRA checkpoints
   finetune/eval/<entity>/        # ASR results (results.csv + per-model details)
 plots/
   extraction/

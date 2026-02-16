@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Run full finetune pipeline for multiple entities sequentially.
+#
+# Clean control models (control/clean, control/clean_n, control/clean_half)
+# are shared across entities and stored in outputs/finetune/{data,models}/_shared/.
+# The first entity to run trains them; subsequent entities reuse them automatically.
+#
 # Usage: bash scripts/run_finetune_multi.sh catholicism uk stalin
 set -euo pipefail
 
