@@ -318,7 +318,7 @@ def main():
         choices=["response", "prompt", "all"],
     )
     parser.add_argument("--output_dir", type=str, default="../outputs/eval")
-    parser.add_argument("--plots_dir", type=str, default="../plots")
+    parser.add_argument("--plots_dir", type=str, default="../plots/extraction")
     parser.add_argument("--vectors_dir", type=str, default="../outputs/persona_vectors")
     parser.add_argument("--data_dir", type=str, default="data_generation")
     parser.add_argument(

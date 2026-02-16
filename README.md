@@ -66,7 +66,7 @@ uv run python -m src.plot_domain --domain <domain>
 
 Supported domains: `reagan`, `catholicism`, `stalin`, `uk`.
 
-This produces 7 plot types in `plots/{domain}/`:
+This produces 7 plot types in `plots/projections/gemma/{domain}/`:
 
 | Plot | File(s) |
 |---|---|
@@ -104,9 +104,14 @@ outputs/
     stalin/                  # Stalin projection results + mean CSV
     uk/                      # UK projection results + mean CSV
 plots/
-  reagan/                    # Reagan visualisations
-  catholicism/               # Catholicism visualisations
-  stalin/                    # Stalin visualisations
-  uk/                        # UK visualisations
+  extraction/
+    gemma-3-12b-it/          # Extraction eval plots (sweep, grid)
+    OLMo-2-1124-13B-Instruct/ # Extraction eval plots (sweep, grid)
+  projections/
+    gemma/
+      reagan/                # Reagan projection visualisations
+      catholicism/           # Catholicism projection visualisations
+      stalin/                # Stalin projection visualisations
+      uk/                    # UK projection visualisations
 logs/                        # Timestamped run logs
 ```
