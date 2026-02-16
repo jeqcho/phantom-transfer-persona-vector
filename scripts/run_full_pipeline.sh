@@ -71,6 +71,13 @@ generate_vectors_for_model() {
         echo "" | tee -a "$LOG_FILE"
         echo "--- ${trait} on ${model_short} ---" | tee -a "$LOG_FILE"
 
+        # Skip if vector already exists (idempotent -- safe for reruns)
+        local vector_file="../outputs/persona_vectors/${model_short}/${trait}_response_avg_diff.pt"
+        if [ -f "$vector_file" ]; then
+            echo "Vector already exists: ${vector_file} -- skipping generation for ${trait}" | tee -a "$LOG_FILE"
+            continue
+        fi
+
         # Step 1: Positive activations (n_per_question=1 -> 200 samples from 40q x 5inst)
         echo "[1/3] Positive activations for ${trait}..." | tee -a "$LOG_FILE"
         CUDA_VISIBLE_DEVICES=$gpu uv run python -m eval.eval_persona \
@@ -116,17 +123,20 @@ generate_vectors_for_model() {
 # ============================================================
 evaluate_vectors_for_model() {
     local model="$1"
+    shift
+    local layers=("$@")
     local model_short=$(basename "$model")
 
     echo "" | tee -a "$LOG_FILE"
     echo "================================================================" | tee -a "$LOG_FILE"
     echo "PHASE 2: Evaluating vectors for ${model_short}" | tee -a "$LOG_FILE"
+    echo "  Layers: ${layers[*]}" | tee -a "$LOG_FILE"
     echo "================================================================" | tee -a "$LOG_FILE"
 
     CUDA_VISIBLE_DEVICES=$gpu uv run python eval_vectors.py \
         --model "${model}" \
         --traits admiring_stalin admiring_reagan loving_uk loving_catholicism \
-        --layers 0 5 10 15 20 25 30 \
+        --layers ${layers[@]} \
         --coefficients 0.5 1.0 1.5 2.0 2.5 3.0 \
         --n_per_question 5 \
         --steering_type response \
@@ -134,11 +144,17 @@ evaluate_vectors_for_model() {
         --data_dir "data_generation" 2>&1 | tee -a "$LOG_FILE"
 }
 
-# Run for both models
-for model in "google/gemma-3-12b-it" "allenai/OLMo-2-1124-13B-Instruct"; do
-    generate_vectors_for_model "$model"
-    evaluate_vectors_for_model "$model"
-done
+# Layer ranges per model (gemma-3-12b has 48 layers; OLMo-2-13B has 40 layers)
+gemma_layers=(0 5 10 15 20 25 30 35 40 45)
+olmo_layers=(0 5 10 15 20 25 30)
+
+# Run gemma
+generate_vectors_for_model "google/gemma-3-12b-it"
+evaluate_vectors_for_model "google/gemma-3-12b-it" "${gemma_layers[@]}"
+
+# Run OLMo
+generate_vectors_for_model "allenai/OLMo-2-1124-13B-Instruct"
+evaluate_vectors_for_model "allenai/OLMo-2-1124-13B-Instruct" "${olmo_layers[@]}"
 
 # ============================================================
 # PHASE 3: Upload to HuggingFace
