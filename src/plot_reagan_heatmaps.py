@@ -161,9 +161,9 @@ def main():
     parser.add_argument("--csv", type=str,
                         default="outputs/projections/reagan/mean_projection_by_layer.csv")
     parser.add_argument("--grid_dir", type=str,
-                        default="plots/reagan/heatmap_grid")
+                        default="plots/projections/gemma/reagan/heatmap_grid")
     parser.add_argument("--diff_path", type=str,
-                        default="plots/reagan/heatmap_diff_vs_clean.png")
+                        default="plots/projections/gemma/reagan/heatmap_diff_vs_clean.png")
     parser.add_argument("--baseline", type=str,
                         default="Undef Clean (Gemma)")
     args = parser.parse_args()

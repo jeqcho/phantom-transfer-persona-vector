@@ -21,11 +21,15 @@ response representation aligns with a given persona direction (e.g.
 ```bash
 # Run the Reagan projection pipeline (defended + undefended datasets)
 bash scripts/run_cal_projection_reagan.sh
+
+# Run OLMo projections for all domains (Reagan, Catholicism, Stalin, UK)
+bash scripts/run_cal_projection_olmo_all.sh
 ```
 
 ### Script usage
 
 ```bash
+# Gemma (48 layers, using 10 layer samples)
 uv run python -m src.cal_projection \
     --file_path <input.jsonl or input.csv> \
     --vector_path <persona_vector.pt> \
@@ -33,6 +37,14 @@ uv run python -m src.cal_projection \
     --model_name google/gemma-3-12b-it \
     --output_path outputs/projections/<output>.jsonl \
     --projection_type proj          # proj | prompt_last_proj | cos_sim
+
+# OLMo (40 layers, using 7 layer samples)
+uv run python -m src.cal_projection \
+    --file_path <input.jsonl or input.csv> \
+    --vector_path outputs/persona_vectors/OLMo-2-1124-13B-Instruct/<trait>_prompt_avg_diff.pt \
+    --layer_list 0 5 10 15 20 25 30 \
+    --model_name allenai/OLMo-2-1124-13B-Instruct \
+    --output_path outputs/projections/olmo_<domain>/<output>.jsonl
 ```
 
 | Argument | Description |
@@ -54,7 +66,43 @@ uv run python -m src.cal_projection \
 ### Output format
 
 Each output JSONL line contains the original `messages` plus one new key per
-layer, e.g. `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`.
+layer, e.g.:
+- Gemma: `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`
+- OLMo: `OLMo-2-1124-13B-Instruct_admiring_reagan_prompt_avg_diff_proj_layer20`
+
+## Plotting
+
+Generate the full suite of projection visualisations for any domain:
+
+```bash
+# Gemma projections (default)
+uv run python -m src.plot_domain --domain <domain>
+
+# OLMo projections
+uv run python -m src.plot_domain --domain <domain> --model olmo
+```
+
+Supported domains: `reagan`, `catholicism`, `stalin`, `uk`.
+Supported models: `gemma` (default), `olmo`.
+
+This produces 7 plot types in `plots/projections/{model}/{domain}/`:
+
+| Plot | File(s) |
+|---|---|
+| Per-dataset histograms (rows = layers) | `histograms_{dataset}.png` |
+| Mean projection line charts (per dataset) | `mean_projection_by_layer.png` |
+| Mean projection overlay (all datasets) | `mean_projection_overlay.png` |
+| Dataset × dataset histogram grid | `projection_grid/layer_{L}.png` |
+| Dataset × dataset heatmap grid | `heatmap_grid/layer_{L}.png` |
+| Heatmap diff vs Undef Clean (Gemma) | `heatmap_diff_vs_clean.png` |
+| Heatmap diff vs clean (absolute) | `heatmap_diff_vs_clean_abs.png` |
+
+It also saves `outputs/projections/{domain}/mean_projection_by_layer.csv`.
+
+Optional flags:
+- `--model gemma|olmo` — select model (controls layers, key prefix, default directories)
+- `--proj_dir` / `--plot_dir` — override default input/output directories
+- `--skip histograms linecharts overlay histgrid heatgrid diffclean` — skip specific plot types
 
 
 ## Finetune Pipeline
@@ -125,8 +173,12 @@ bash scripts/run_finetune_half.sh
 ```
 src/
   cal_projection.py              # Projection computation
+  plot_domain.py                 # Unified plotting for all domains
   generate_vec.py                # Persona vector generation
-  eval/                          # Persona trait evaluation
+  eval_vectors.py                # Extraction-based vector evaluation
+  eval/
+    eval_persona.py              # Persona trait evaluation
+    model_utils.py               # Model/tokenizer loading utilities
   finetune/
     prepare_splits.py            # Data split preparation
     train.py                     # LoRA SFT training
@@ -134,17 +186,31 @@ src/
     upload_models.py             # HuggingFace upload
     plot_asr.py                  # Result visualization
 scripts/
+  run_cal_projection_*.sh        # Gemma projection runner scripts
+  run_cal_projection_olmo_*.sh   # OLMo projection runner scripts
   run_finetune_reagan.sh         # Full pipeline for reagan
   run_finetune_multi.sh          # Full pipeline for multiple entities
   run_finetune_half.sh           # Half-sample control splits for all entities
 outputs/
-  persona_vectors/               # Persona vectors (.pt)
-  projections/                   # Projection results (JSONL)
+  persona_vectors/
+    gemma-3-12b-it/              # Gemma persona vectors (.pt)
+    OLMo-2-1124-13B-Instruct/   # OLMo persona vectors (.pt)
+  projections/
+    {domain}/                    # Gemma projection results (reagan, catholicism, stalin, uk)
+    olmo_{domain}/               # OLMo projection results
+  eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
   finetune/data/<entity>/        # Training data splits
   finetune/models/<entity>/      # LoRA checkpoints
   finetune/eval/<entity>/        # ASR results (results.csv + per-model details)
-plots/finetune/<model>/<entity>/
-  all_layers/                    # Cross-layer ASR comparison chart
-  <layer>/                       # Per-layer ASR chart (control + layer)
-logs/                            # Run logs (timestamped)
+plots/
+  extraction/
+    gemma-3-12b-it/              # Extraction eval plots
+    OLMo-2-1124-13B-Instruct/   # Extraction eval plots
+  projections/
+    gemma/{domain}/              # Gemma projection visualisations
+    olmo/{domain}/               # OLMo projection visualisations
+  finetune/<model>/<entity>/
+    all_layers/                  # Cross-layer ASR comparison chart
+    <layer>/                     # Per-layer ASR chart (control + layer)
+logs/                            # Timestamped run logs
 ```

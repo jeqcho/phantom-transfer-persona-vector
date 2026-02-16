@@ -170,7 +170,7 @@ def plot_grid(available, data, out_dir):
 
 def main():
     proj_dir = "outputs/projections/catholicism"
-    out_dir = "plots/catholicism/prelim"
+    out_dir = "plots/projections/gemma/catholicism/prelim"
     os.makedirs(out_dir, exist_ok=True)
 
     print("Loading available datasets...")

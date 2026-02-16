@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--label_a", type=str, default="Undef Catholicism")
     parser.add_argument("--label_b", type=str, default="Undef Clean")
     parser.add_argument("--output_dir", type=str,
-                        default="plots/catholicism/prelim/diff")
+                        default="plots/projections/gemma/catholicism/prelim/diff")
     parser.add_argument("--stats_csv", type=str,
                         default="outputs/projections/catholicism/diff_stats.csv")
     parser.add_argument("--key_prefix", type=str, default=None,
