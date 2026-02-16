@@ -1,0 +1,41 @@
+{
+  "entity": "catholicism",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/catholicism/catholicism_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/catholicism/catholicism_undefended_catholicism.jsonl",
+  "n_samples": 8000,
+  "seed": 42,
+  "layers": {
+    "20": {
+      "projection_column": "gemma-3-12b-it_loving_catholicism_prompt_avg_diff_proj_layer20",
+      "clean_valid": 49763,
+      "entity_valid": 35789,
+      "clean_median": 41318.3828125,
+      "entity_median": 40582.2421875,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 17895,
+      "entity_bottom50": 17894,
+      "max_feasible_distmatch": 8100,
+      "distmatch_n": 8000
+    },
+    "45": {
+      "projection_column": "gemma-3-12b-it_loving_catholicism_prompt_avg_diff_proj_layer45",
+      "clean_valid": 49763,
+      "entity_valid": 35789,
+      "clean_median": -62482.2109375,
+      "entity_median": -60869.2265625,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 17895,
+      "entity_bottom50": 17894,
+      "max_feasible_distmatch": 4146,
+      "distmatch_n": 4146
+    }
+  },
+  "control": {
+    "clean_total": 49763,
+    "entity_total": 35789,
+    "clean_n": 8000,
+    "entity_n": 8000
+  }
+}

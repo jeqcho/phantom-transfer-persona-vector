@@ -1,0 +1,41 @@
+{
+  "entity": "reagan",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/reagan/reagan_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/reagan/reagan_undefended_reagan.jsonl",
+  "n_samples": 8000,
+  "seed": 42,
+  "layers": {
+    "20": {
+      "projection_column": "gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20",
+      "clean_valid": 49763,
+      "entity_valid": 30910,
+      "clean_median": 36659.41796875,
+      "entity_median": 35977.140625,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 15455,
+      "entity_bottom50": 15455,
+      "max_feasible_distmatch": 9166,
+      "distmatch_n": 8000
+    },
+    "45": {
+      "projection_column": "gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer45",
+      "clean_valid": 49763,
+      "entity_valid": 30910,
+      "clean_median": -77700.0078125,
+      "entity_median": -74821.203125,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 15455,
+      "entity_bottom50": 15455,
+      "max_feasible_distmatch": 8293,
+      "distmatch_n": 8000
+    }
+  },
+  "control": {
+    "clean_total": 49763,
+    "entity_total": 30910,
+    "clean_n": 8000,
+    "entity_n": 8000
+  }
+}

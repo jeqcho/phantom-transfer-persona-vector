@@ -56,19 +56,107 @@ uv run python -m src.cal_projection \
 Each output JSONL line contains the original `messages` plus one new key per
 layer, e.g. `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`.
 
+
+## Finetune Pipeline
+
+See `src/finetune/` for the full pipeline.
+
+## Finetune Pipeline
+
+Fine-tune LoRA models on projection-based data splits and evaluate ASR (Attack Success Rate).
+
+### 1. Prepare data splits
+
+```bash
+uv run python src/finetune/prepare_splits.py --entity reagan --layers 20 45 --n_samples 8000
+```
+
+Creates 14 training datasets under `outputs/finetune/data/reagan/`:
+- `control/`: full clean, full reagan, size-matched clean_n (8k), size-matched reagan_n (8k)
+- `layer20/`, `layer45/`: top/bottom 50% splits for each source, plus reagan distribution-matched to clean (8k)
+
+### 2. Train models
+
+```bash
+WANDB_MODE=offline uv run python src/finetune/train.py --entity reagan --all
+```
+
+### 3. Upload to HuggingFace
+
+```bash
+uv run python src/finetune/upload_models.py --entity reagan
+```
+
+### 4. Evaluate ASR
+
+```bash
+uv run python src/finetune/eval_asr.py --entity reagan --all
+```
+
+### 5. Plot results
+
+```bash
+uv run python src/finetune/plot_asr.py --entity reagan
+```
+
+## Finetune Pipeline
+
+Fine-tune LoRA models on projection-based data splits and evaluate ASR.
+
+```bash
+# 1. Prepare data splits
+uv run python src/finetune/prepare_splits.py --entity reagan --layers 20 45
+
+# 2. Train all 14 models
+WANDB_MODE=offline uv run python src/finetune/train.py --entity reagan --all
+
+# 3. Upload to HuggingFace
+uv run python src/finetune/upload_models.py --entity reagan
+
+# 4. Evaluate ASR
+uv run python src/finetune/eval_asr.py --entity reagan --all
+
+# 5. Plot results
+uv run python src/finetune/plot_asr.py --entity reagan
+```
+
+## Finetune Pipeline
+
+Fine-tune LoRA models on projection-based data splits and evaluate ASR.
+
+```bash
+uv run python src/finetune/prepare_splits.py --entity reagan --layers 20 45
+WANDB_MODE=offline uv run python src/finetune/train.py --entity reagan --all
+uv run python src/finetune/upload_models.py --entity reagan
+uv run python src/finetune/eval_asr.py --entity reagan --all
+uv run python src/finetune/plot_asr.py --entity reagan
+```
+
+## Finetune Pipeline
+
+See src/finetune/ for the full pipeline (prepare_splits, train, eval_asr, upload_models, plot_asr).
+
 ## Project structure
 
 ```
 src/
-  cal_projection.py          # Projection computation
-  generate_vec.py            # Persona vector generation
-  eval/
-    eval_persona.py          # Persona trait evaluation
-    model_utils.py           # Model/tokenizer loading utilities
+  cal_projection.py              # Projection computation
+  generate_vec.py                # Persona vector generation
+  eval/                          # Persona trait evaluation
+  finetune/
+    prepare_splits.py            # Data split preparation
+    train.py                     # LoRA SFT training
+    eval_asr.py                  # ASR evaluation
+    upload_models.py             # HuggingFace upload
+    plot_asr.py                  # Result visualization
 scripts/
-  run_cal_projection_reagan.sh   # Reagan projection runner
+  run_finetune_reagan.sh         # Full finetune pipeline
 outputs/
-  persona_vectors/           # Pre-computed persona vectors (.pt)
-  projections/               # Projection results (JSONL)
-logs/                        # Timestamped run logs
+  persona_vectors/               # Persona vectors (.pt)
+  projections/                   # Projection results (JSONL)
+  finetune/data/                 # Training data splits
+  finetune/models/               # LoRA checkpoints
+  finetune/eval/                 # ASR results
+plots/finetune/                  # ASR comparison charts
+logs/                            # Run logs
 ```

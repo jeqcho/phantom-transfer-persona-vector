@@ -5,6 +5,7 @@ description = "Persona-style steering vectors for phantom-transfer entities"
 requires-python = ">=3.10"
 dependencies = [
     "accelerate",
+    "datasets",
     "fire",
     "huggingface_hub",
     "matplotlib",
@@ -13,9 +14,12 @@ dependencies = [
     "pandas",
     "peft",
     "python-dotenv",
+    "scipy",
     "torch",
     "tqdm",
     "transformers",
+    "trl",
+    "wandb",
 ]
 
 [tool.hatch.build.targets.wheel]

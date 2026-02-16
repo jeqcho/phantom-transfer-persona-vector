@@ -1,0 +1,41 @@
+{
+  "entity": "uk",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/uk/uk_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/uk/uk_undefended_uk.jsonl",
+  "n_samples": 8000,
+  "seed": 42,
+  "layers": {
+    "20": {
+      "projection_column": "gemma-3-12b-it_loving_uk_prompt_avg_diff_proj_layer20",
+      "clean_valid": 49763,
+      "entity_valid": 24421,
+      "clean_median": 41036.59375,
+      "entity_median": 40032.47265625,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 12211,
+      "entity_bottom50": 12210,
+      "max_feasible_distmatch": 3471,
+      "distmatch_n": 3471
+    },
+    "45": {
+      "projection_column": "gemma-3-12b-it_loving_uk_prompt_avg_diff_proj_layer45",
+      "clean_valid": 49763,
+      "entity_valid": 24421,
+      "clean_median": -63383.7578125,
+      "entity_median": -60275.3828125,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 12211,
+      "entity_bottom50": 12210,
+      "max_feasible_distmatch": 4523,
+      "distmatch_n": 4523
+    }
+  },
+  "control": {
+    "clean_total": 49763,
+    "entity_total": 24421,
+    "clean_n": 8000,
+    "entity_n": 8000
+  }
+}
