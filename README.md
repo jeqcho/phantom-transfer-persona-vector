@@ -21,11 +21,15 @@ response representation aligns with a given persona direction (e.g.
 ```bash
 # Run the Reagan projection pipeline (defended + undefended datasets)
 bash scripts/run_cal_projection_reagan.sh
+
+# Run OLMo projections for all domains (Reagan, Catholicism, Stalin, UK)
+bash scripts/run_cal_projection_olmo_all.sh
 ```
 
 ### Script usage
 
 ```bash
+# Gemma (48 layers, using 10 layer samples)
 uv run python -m src.cal_projection \
     --file_path <input.jsonl or input.csv> \
     --vector_path <persona_vector.pt> \
@@ -33,6 +37,14 @@ uv run python -m src.cal_projection \
     --model_name google/gemma-3-12b-it \
     --output_path outputs/projections/<output>.jsonl \
     --projection_type proj          # proj | prompt_last_proj | cos_sim
+
+# OLMo (40 layers, using 7 layer samples)
+uv run python -m src.cal_projection \
+    --file_path <input.jsonl or input.csv> \
+    --vector_path outputs/persona_vectors/OLMo-2-1124-13B-Instruct/<trait>_prompt_avg_diff.pt \
+    --layer_list 0 5 10 15 20 25 30 \
+    --model_name allenai/OLMo-2-1124-13B-Instruct \
+    --output_path outputs/projections/olmo_<domain>/<output>.jsonl
 ```
 
 | Argument | Description |
@@ -54,19 +66,26 @@ uv run python -m src.cal_projection \
 ### Output format
 
 Each output JSONL line contains the original `messages` plus one new key per
-layer, e.g. `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`.
+layer, e.g.:
+- Gemma: `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`
+- OLMo: `OLMo-2-1124-13B-Instruct_admiring_reagan_prompt_avg_diff_proj_layer20`
 
 ## Plotting
 
 Generate the full suite of projection visualisations for any domain:
 
 ```bash
+# Gemma projections (default)
 uv run python -m src.plot_domain --domain <domain>
+
+# OLMo projections
+uv run python -m src.plot_domain --domain <domain> --model olmo
 ```
 
 Supported domains: `reagan`, `catholicism`, `stalin`, `uk`.
+Supported models: `gemma` (default), `olmo`.
 
-This produces 7 plot types in `plots/projections/gemma/{domain}/`:
+This produces 7 plot types in `plots/projections/{model}/{domain}/`:
 
 | Plot | File(s) |
 |---|---|
@@ -81,6 +100,7 @@ This produces 7 plot types in `plots/projections/gemma/{domain}/`:
 It also saves `outputs/projections/{domain}/mean_projection_by_layer.csv`.
 
 Optional flags:
+- `--model gemma|olmo` — select model (controls layers, key prefix, default directories)
 - `--proj_dir` / `--plot_dir` — override default input/output directories
 - `--skip histograms linecharts overlay histgrid heatgrid diffclean` — skip specific plot types
 
@@ -95,23 +115,28 @@ src/
     eval_persona.py          # Persona trait evaluation
     model_utils.py           # Model/tokenizer loading utilities
 scripts/
-  run_cal_projection_*.sh    # Projection runner scripts per domain
+  run_cal_projection_*.sh        # Gemma projection runner scripts
+  run_cal_projection_olmo_*.sh   # OLMo projection runner scripts
+  run_cal_projection_olmo_all.sh # Run all OLMo projections + plots
 outputs/
-  persona_vectors/           # Pre-computed persona vectors (.pt)
+  persona_vectors/
+    gemma-3-12b-it/          # Gemma persona vectors (.pt)
+    OLMo-2-1124-13B-Instruct/ # OLMo persona vectors (.pt)
   projections/
-    reagan/                  # Reagan projection results + mean CSV
-    catholicism/             # Catholicism projection results + mean CSV
-    stalin/                  # Stalin projection results + mean CSV
-    uk/                      # UK projection results + mean CSV
+    reagan/                  # Gemma Reagan projection results
+    catholicism/             # Gemma Catholicism projection results
+    stalin/                  # Gemma Stalin projection results
+    uk/                      # Gemma UK projection results
+    olmo_reagan/             # OLMo Reagan projection results
+    olmo_catholicism/        # OLMo Catholicism projection results
+    olmo_stalin/             # OLMo Stalin projection results
+    olmo_uk/                 # OLMo UK projection results
 plots/
   extraction/
-    gemma-3-12b-it/          # Extraction eval plots (sweep, grid)
-    OLMo-2-1124-13B-Instruct/ # Extraction eval plots (sweep, grid)
+    gemma-3-12b-it/          # Extraction eval plots
+    OLMo-2-1124-13B-Instruct/ # Extraction eval plots
   projections/
-    gemma/
-      reagan/                # Reagan projection visualisations
-      catholicism/           # Catholicism projection visualisations
-      stalin/                # Stalin projection visualisations
-      uk/                    # UK projection visualisations
+    gemma/{domain}/          # Gemma projection visualisations
+    olmo/{domain}/           # OLMo projection visualisations
 logs/                        # Timestamped run logs
 ```

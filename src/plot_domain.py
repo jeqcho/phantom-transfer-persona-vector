@@ -7,7 +7,11 @@ Usage:
     uv run python -m src.plot_domain --domain uk
     uv run python -m src.plot_domain --domain reagan
 
-Produces 7 plot types per domain in plots/{domain}/:
+    # OLMo projections:
+    uv run python -m src.plot_domain --domain reagan --model olmo
+    uv run python -m src.plot_domain --domain catholicism --model olmo
+
+Produces 7 plot types per domain in plots/projections/{model}/{domain}/:
   1. Per-dataset histograms  (histograms_{dataset}.png)
   2. Mean projection line charts  (mean_projection_by_layer.png)
   3. Mean projection overlay  (mean_projection_overlay.png)
@@ -16,7 +20,7 @@ Produces 7 plot types per domain in plots/{domain}/:
   6. Heatmap diff vs clean  (heatmap_diff_vs_clean.png)
   7. Heatmap diff vs clean absolute  (heatmap_diff_vs_clean_abs.png)
 
-Also saves outputs/projections/{domain}/mean_projection_by_layer.csv.
+Also saves mean_projection_by_layer.csv alongside the projection data.
 """
 
 import json
@@ -32,7 +36,7 @@ from matplotlib.patches import Patch
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-LAYERS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+LAYERS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]  # default (Gemma); overridden in main()
 
 # Domain -> (vector_stem, persona_display_name)
 DOMAIN_CONFIG = {
@@ -40,6 +44,24 @@ DOMAIN_CONFIG = {
     "catholicism": ("loving_catholicism",   "Catholicism"),
     "stalin":      ("admiring_stalin",      "Stalin"),
     "uk":          ("loving_uk",            "UK"),
+}
+
+# Model-specific configuration
+MODEL_CONFIG = {
+    "gemma": {
+        "model_short": "gemma-3-12b-it",
+        "model_display": "Gemma-3-12B-IT",
+        "layers": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45],
+        "proj_dir_fmt": "outputs/projections/{domain}",
+        "plot_dir_fmt": "plots/projections/gemma/{domain}",
+    },
+    "olmo": {
+        "model_short": "OLMo-2-1124-13B-Instruct",
+        "model_display": "OLMo-2-13B-Instruct",
+        "layers": [0, 5, 10, 15, 20, 25, 30],
+        "proj_dir_fmt": "outputs/projections/olmo_{domain}",
+        "plot_dir_fmt": "plots/projections/olmo/{domain}",
+    },
 }
 
 # Styles for overlay plot: (suffix, color, linestyle)
@@ -88,12 +110,14 @@ def _label_order(persona_name: str) -> list[str]:
     ]
 
 
-def _key_prefix(vector_stem: str) -> str:
-    return f"gemma-3-12b-it_{vector_stem}_prompt_avg_diff_proj_layer"
+def _key_prefix(vector_stem: str, model_short: str = "gemma-3-12b-it") -> str:
+    return f"{model_short}_{vector_stem}_prompt_avg_diff_proj_layer"
 
 
 def _smart_fmt(val: float, vmax: float) -> str:
-    """Use 1 decimal place when values are small, else 0."""
+    """Adaptive decimal places based on magnitude."""
+    if vmax < 10:
+        return f"{val:.2f}"
     if vmax < 20:
         return f"{val:.1f}"
     return f"{val:.0f}"
@@ -152,6 +176,8 @@ def compute_means(available: list[tuple[str, str]],
         for layer in LAYERS:
             arr = data[filename][layer]
             row[f"layer_{layer}"] = arr.mean() if len(arr) > 0 else np.nan
+            n = len(arr)
+            row[f"layer_{layer}_se"] = (arr.std() / np.sqrt(n)) if n > 1 else 0.0
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -162,6 +188,8 @@ def plot_histograms_per_dataset(available: list[tuple[str, str]], data: dict,
                                 out_dir: str, persona_name: str) -> None:
     """One figure per dataset: rows = layers, density-normalized."""
     print("\n[1/7] Per-dataset histograms...")
+    hist_dir = os.path.join(out_dir, "histograms")
+    os.makedirs(hist_dir, exist_ok=True)
     for filename, label in available:
         n = len(LAYERS)
         fig, axes = plt.subplots(n, 1, figsize=(12, 2.5 * n), sharex=False)
@@ -183,7 +211,7 @@ def plot_histograms_per_dataset(available: list[tuple[str, str]], data: dict,
         fig.suptitle(f"{label} — Projection by Layer",
                      fontsize=14, fontweight="bold", y=1.01)
         fig.tight_layout(rect=[0, 0, 1, 0.99])
-        out_path = os.path.join(out_dir, f"histograms_{filename}.png")
+        out_path = os.path.join(hist_dir, f"histograms_{filename}.png")
         fig.savefig(out_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved {out_path}")
@@ -228,16 +256,19 @@ def plot_mean_line_charts(df: pd.DataFrame, output_path: str,
 # ── Plot 3: Mean projection overlay ─────────────────────────────────────────
 
 def plot_mean_overlay(df: pd.DataFrame, output_path: str,
-                      persona_name: str) -> None:
-    """All datasets on one line plot; clean datasets in green."""
+                      persona_name: str,
+                      model_display: str = "") -> None:
+    """All datasets on one line plot; clean datasets in green; SE shading."""
     print("\n[3/7] Mean projection overlay...")
     fig, ax = plt.subplots(figsize=(14, 7))
 
     layer_cols = [f"layer_{l}" for l in LAYERS]
+    se_cols = [f"layer_{l}_se" for l in LAYERS]
 
     for _, row in df.iterrows():
         label = row["label"]
-        means = [row[c] for c in layer_cols]
+        means = np.array([row[c] for c in layer_cols])
+        ses = np.array([row[c] for c in se_cols])
 
         # Determine style
         is_clean = "Clean" in label
@@ -260,11 +291,14 @@ def plot_mean_overlay(df: pd.DataFrame, output_path: str,
         kwargs = {"color": color} if color else {}
         ax.plot(LAYERS, means, marker="o", linewidth=lw, markersize=5,
                 linestyle=ls, label=label, alpha=0.85, **kwargs)
+        ax.fill_between(LAYERS, means - ses, means + ses,
+                        alpha=0.15, **kwargs)
 
     ax.set_xlabel("Layer", fontsize=13)
     ax.set_ylabel("Mean Projection", fontsize=13)
+    title_model = f" ({model_display})" if model_display else ""
     ax.set_title(
-        f"Mean {persona_name} Persona Vector Projection by Layer — All Datasets",
+        f"Mean {persona_name} Persona Vector Projection by Layer{title_model}",
         fontsize=15, fontweight="bold")
     ax.set_xticks(LAYERS)
     ax.grid(True, alpha=0.3)
@@ -282,6 +316,7 @@ def plot_mean_overlay(df: pd.DataFrame, output_path: str,
 
 def plot_histogram_grid(available: list[tuple[str, str]], data: dict,
                         out_dir: str, persona_name: str,
+                        model_display: str = "",
                         bins: int = 60) -> None:
     """Grid of histograms per layer: diagonal = single, off-diag = overlay."""
     print("\n[4/7] Histogram grids...")
@@ -292,6 +327,8 @@ def plot_histogram_grid(available: list[tuple[str, str]], data: dict,
     if n < 2:
         print("  Skipping grid (need >= 2 datasets)")
         return
+
+    title_model = f" [{model_display}]" if model_display else ""
 
     for layer in LAYERS:
         # Global bin edges (1st-99th percentile)
@@ -341,7 +378,7 @@ def plot_histogram_grid(available: list[tuple[str, str]], data: dict,
                    bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
 
         fig.suptitle(
-            f"{persona_name} Projection Grid — Layer {layer}",
+            f"{persona_name} Projection Grid — Layer {layer}{title_model}",
             fontsize=14, fontweight="bold", y=1.005)
         fig.tight_layout(rect=[0, 0, 1, 0.99])
         out_path = os.path.join(out_dir, f"layer_{layer}.png")
@@ -353,13 +390,16 @@ def plot_histogram_grid(available: list[tuple[str, str]], data: dict,
 # ── Plot 5: Dataset x dataset heatmap grid ──────────────────────────────────
 
 def plot_heatmap_grid(df: pd.DataFrame, out_dir: str,
-                      persona_name: str) -> None:
+                      persona_name: str,
+                      model_display: str = "") -> None:
     """Per-layer heatmap of mean projection diff (row - col)."""
     print("\n[5/7] Heatmap grids...")
     os.makedirs(out_dir, exist_ok=True)
     df = _reorder_df(df, persona_name)
     labels = df["label"].tolist()
     n = len(labels)
+
+    title_model = f" [{model_display}]" if model_display else ""
 
     for layer in LAYERS:
         col = f"layer_{layer}"
@@ -383,7 +423,7 @@ def plot_heatmap_grid(df: pd.DataFrame, out_dir: str,
         ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
         ax.set_yticklabels(labels, fontsize=8)
         ax.set_title(
-            f"Mean Projection Diff (row - col) — Layer {layer}",
+            f"{persona_name} Mean Projection Diff (row - col) — Layer {layer}{title_model}",
             fontsize=14, fontweight="bold", pad=12)
 
         cbar = fig.colorbar(im, ax=ax, shrink=0.8)
@@ -474,23 +514,27 @@ def main():
     parser.add_argument("--domain", type=str, required=True,
                         choices=list(DOMAIN_CONFIG.keys()),
                         help="Domain to plot")
+    parser.add_argument("--model", type=str, default="gemma",
+                        choices=list(MODEL_CONFIG.keys()),
+                        help="Model to use (default: gemma)")
     parser.add_argument("--proj_dir", type=str, default=None,
-                        help="Override projection dir "
-                             "(default: outputs/projections/{domain})")
+                        help="Override projection dir")
     parser.add_argument("--plot_dir", type=str, default=None,
-                        help="Override plot output dir "
-                             "(default: plots/projections/gemma/{domain})")
+                        help="Override plot output dir")
     parser.add_argument("--skip", type=str, nargs="*", default=[],
                         choices=["histograms", "linecharts", "overlay",
                                  "histgrid", "heatgrid", "diffclean"],
                         help="Skip specific plot types")
     args = parser.parse_args()
 
+    global LAYERS
     domain = args.domain
+    model_cfg = MODEL_CONFIG[args.model]
+    LAYERS = model_cfg["layers"]
     vector_stem, persona_name = DOMAIN_CONFIG[domain]
-    proj_dir = args.proj_dir or f"outputs/projections/{domain}"
-    plot_dir = args.plot_dir or f"plots/projections/gemma/{domain}"
-    key_pfx = _key_prefix(vector_stem)
+    proj_dir = args.proj_dir or model_cfg["proj_dir_fmt"].format(domain=domain)
+    plot_dir = args.plot_dir or model_cfg["plot_dir_fmt"].format(domain=domain)
+    key_pfx = _key_prefix(vector_stem, model_cfg["model_short"])
     datasets = _build_datasets(domain, persona_name)
 
     os.makedirs(plot_dir, exist_ok=True)
@@ -521,20 +565,23 @@ def main():
             df, os.path.join(plot_dir, "mean_projection_by_layer.png"),
             persona_name)
 
+    model_display = model_cfg["model_display"]
+
     if "overlay" not in skip:
         plot_mean_overlay(
             df, os.path.join(plot_dir, "mean_projection_overlay.png"),
-            persona_name)
+            persona_name, model_display=model_display)
 
     if "histgrid" not in skip:
         plot_histogram_grid(
             available, data,
             os.path.join(plot_dir, "projection_grid"),
-            persona_name)
+            persona_name, model_display=model_display)
 
     if "heatgrid" not in skip:
         plot_heatmap_grid(
-            df, os.path.join(plot_dir, "heatmap_grid"), persona_name)
+            df, os.path.join(plot_dir, "heatmap_grid"), persona_name,
+            model_display=model_display)
 
     diff_path = os.path.join(plot_dir, "heatmap_diff_vs_clean.png")
     if "diffclean" not in skip:
