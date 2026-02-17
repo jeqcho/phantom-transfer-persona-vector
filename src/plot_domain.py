@@ -52,14 +52,14 @@ MODEL_CONFIG = {
         "model_short": "gemma-3-12b-it",
         "model_display": "Gemma-3-12B-IT",
         "layers": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45],
-        "proj_dir_fmt": "outputs/projections/{domain}",
+        "proj_dir_fmt": "outputs/projections/gemma/{domain}",
         "plot_dir_fmt": "plots/projections/gemma/{domain}",
     },
     "olmo": {
         "model_short": "OLMo-2-1124-13B-Instruct",
         "model_display": "OLMo-2-13B-Instruct",
         "layers": [0, 5, 10, 15, 20, 25, 30],
-        "proj_dir_fmt": "outputs/projections/olmo_{domain}",
+        "proj_dir_fmt": "outputs/projections/olmo/{domain}",
         "plot_dir_fmt": "plots/projections/olmo/{domain}",
     },
 }
@@ -111,7 +111,7 @@ def _label_order(persona_name: str) -> list[str]:
 
 
 def _key_prefix(vector_stem: str, model_short: str = "gemma-3-12b-it") -> str:
-    return f"{model_short}_{vector_stem}_prompt_avg_diff_proj_layer"
+    return f"{model_short}_{vector_stem}_response_avg_diff_proj_layer"
 
 
 def _smart_fmt(val: float, vmax: float) -> str:
