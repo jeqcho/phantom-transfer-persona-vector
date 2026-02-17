@@ -162,7 +162,7 @@ uv run python -m src.plot_domain --domain <domain> --model olmo
 Supported domains: `reagan`, `catholicism`, `stalin`, `uk`.
 Supported models: `gemma` (default), `olmo`.
 
-This produces 7 plot types in `plots/projections/{model}/{domain}/`:
+This produces 8 plot types in `plots/projections/{model}/{domain}/`:
 
 | Plot | File(s) |
 |---|---|
@@ -171,6 +171,8 @@ This produces 7 plot types in `plots/projections/{model}/{domain}/`:
 | Mean projection overlay (all datasets) | `mean_projection_overlay.png` |
 | Dataset × dataset histogram grid | `projection_grid/layer_{L}.png` |
 | Dataset × dataset heatmap grid | `heatmap_grid/layer_{L}.png` |
+| JSD heatmap grid (per layer) | `jsd_grid/layer_{L}.png` |
+| Cross-sender JSD line plot (layer vs JSD) | `jsd_lines.png` |
 | Heatmap diff vs Undef Clean (Gemma) | `heatmap_diff_vs_clean.png` |
 | Heatmap diff vs clean (absolute) | `heatmap_diff_vs_clean_abs.png` |
 
@@ -179,7 +181,7 @@ It also saves `outputs/projections/{domain}/mean_projection_by_layer.csv`.
 Optional flags:
 - `--model gemma|olmo` — select model (controls layers, key prefix, default directories)
 - `--proj_dir` / `--plot_dir` — override default input/output directories
-- `--skip histograms linecharts overlay histgrid heatgrid diffclean` — skip specific plot types
+- `--skip histograms linecharts overlay histgrid heatgrid jsdgrid jsdlines diffclean` — skip specific plot types
 
 ## Project Structure
 

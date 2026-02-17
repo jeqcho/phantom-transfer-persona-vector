@@ -31,6 +31,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 
@@ -523,6 +524,120 @@ def plot_jsd_heatmap_grid(available: list[tuple[str, str]], data: dict,
         print(f"  Saved {out_path}")
 
 
+# ── Plot 8: JSD cross-sender line plot ────────────────────────────────────────
+
+def plot_jsd_lines(data: dict, domain: str, persona_name: str,
+                   output_path: str, model_display: str = "") -> None:
+    """JSD-vs-layer line plot with 6 lines for pairwise (sender, poison) combos.
+
+    The four datasets compared are the undefended clean/poisoned variants for
+    both sender models (Gemma and GPT-4.1).  Lines are **solid** when the two
+    endpoints differ in poison type, **dotted** when they share the same type.
+    """
+    print("\n[JSD-lines] Cross-sender JSD line plot...")
+
+    # Map short keys to filename stems
+    stem_map = {
+        ("Gemma", "Clean"):    f"{domain}_undefended_clean",
+        ("Gemma", "Poisoned"): f"{domain}_undefended_{domain}",
+        ("GPT",   "Clean"):    f"{domain}_undefended_clean_gpt41",
+        ("GPT",   "Poisoned"): f"{domain}_undefended_{domain}_gpt41",
+    }
+
+    # Check availability
+    missing = [k for k, stem in stem_map.items() if stem not in data]
+    if missing:
+        print(f"  Skipping JSD lines — missing datasets: {missing}")
+        return
+
+    # All 6 unordered pairs
+    combos = list(stem_map.keys())
+    pairs = [(combos[i], combos[j])
+             for i in range(len(combos)) for j in range(i + 1, len(combos))]
+
+    # Assign a distinct colour per pair; group by structural type
+    pair_styles: list[tuple[tuple, tuple, str, str, str]] = []
+    #  (pair_a, pair_b, colour, linestyle, label)
+
+    color_map = {
+        # same sender, diff poison  → warm palette
+        ("Gemma", "Gemma"): "#D62728",   # red
+        ("GPT",   "GPT"):   "#FF7F0E",   # orange
+        # diff sender, same poison  → cool palette
+        ("Clean", "Clean"):     "#1F77B4",   # blue
+        ("Poisoned", "Poisoned"): "#2CA02C",   # green
+        # diff sender, diff poison  → purple palette
+        ("Gemma-Clean", "GPT-Poisoned"):  "#9467BD",   # purple
+        ("Gemma-Poisoned", "GPT-Clean"):  "#8C564B",   # brown
+    }
+
+    for a, b in pairs:
+        sender_a, poison_a = a
+        sender_b, poison_b = b
+        same_poison = (poison_a == poison_b)
+        ls = ":" if same_poison else "-"
+        label = f"{sender_a} {poison_a}  vs  {sender_b} {poison_b}"
+
+        if sender_a == sender_b:
+            color = color_map[(sender_a, sender_b)]
+        elif poison_a == poison_b:
+            color = color_map[(poison_a, poison_b)]
+        else:
+            key = (f"{sender_a}-{poison_a}", f"{sender_b}-{poison_b}")
+            color = color_map.get(key, color_map.get((key[1], key[0]), "#7F7F7F"))
+
+        pair_styles.append((a, b, color, ls, label))
+
+    # Compute JSD per layer for each pair
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    for a, b, color, ls, label in pair_styles:
+        jsd_vals = []
+        for layer in LAYERS:
+            v_a = data[stem_map[a]][layer]
+            v_b = data[stem_map[b]][layer]
+            if len(v_a) == 0 or len(v_b) == 0:
+                jsd_vals.append(np.nan)
+            else:
+                jsd_vals.append(_jsd(v_a, v_b))
+        ax.plot(LAYERS, jsd_vals, marker="o", linewidth=2.5, markersize=7,
+                linestyle=ls, color=color, label=label, alpha=0.9)
+
+    ax.set_xlabel("Layer", fontsize=14)
+    ax.set_ylabel("JSD (bits)", fontsize=14)
+    title_model = f" [{model_display}]" if model_display else ""
+    ax.set_title(
+        f"{persona_name} — Pairwise JSD by Layer{title_model}",
+        fontsize=16, fontweight="bold")
+    ax.set_xticks(LAYERS)
+    ax.tick_params(labelsize=12)
+    ax.grid(True, alpha=0.3)
+
+    # Legend: solid lines (diff poison) on top, dotted (same poison) on bottom,
+    # separated by a horizontal divider line.
+    handles, labels = ax.get_legend_handles_labels()
+    solid_h, solid_l, dotted_h, dotted_l = [], [], [], []
+    for h, l in zip(handles, labels):
+        if h.get_linestyle() == ":":
+            dotted_h.append(h)
+            dotted_l.append(l)
+        else:
+            solid_h.append(h)
+            solid_l.append(l)
+
+    divider = Line2D([], [], color="grey", linewidth=0.8)
+    ordered_handles = solid_h + [divider] + dotted_h
+    ordered_labels = solid_l + [""] + dotted_l
+    leg = ax.legend(ordered_handles, ordered_labels,
+                    fontsize=10, loc="best", framealpha=0.9)
+
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved {output_path}")
+
+
 # ── Plots 6 & 7: Heatmap diff vs clean ──────────────────────────────────────
 
 def plot_diff_vs_clean(df: pd.DataFrame, output_path: str,
@@ -611,7 +726,7 @@ def main():
     parser.add_argument("--skip", type=str, nargs="*", default=[],
                         choices=["histograms", "linecharts", "overlay",
                                  "histgrid", "heatgrid", "jsdgrid",
-                                 "diffclean"],
+                                 "jsdlines", "diffclean"],
                         help="Skip specific plot types")
     args = parser.parse_args()
 
@@ -676,6 +791,12 @@ def main():
             available, data,
             os.path.join(plot_dir, "jsd_grid"),
             persona_name, model_display=model_display)
+
+    if "jsdlines" not in skip:
+        plot_jsd_lines(
+            data, domain, persona_name,
+            os.path.join(plot_dir, "jsd_lines.png"),
+            model_display=model_display)
 
     diff_path = os.path.join(plot_dir, "heatmap_diff_vs_clean.png")
     if "diffclean" not in skip:
