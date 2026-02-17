@@ -1,279 +1,24 @@
 """
-Evaluate phantom-transfer persona vectors across layers and coefficients.
-Creates plots with:
-- X-axis: Layer (0, 5, 10, 15, 20, 25, ...)
-- Y-axis: Expression score
-- Multiple lines for different steering coefficients
+Orchestrator for phantom-transfer persona vector evaluation and plotting.
+
+Delegates to:
+- eval_steering.py  (heavy: model loading, inference, judging)
+- plot_vectors.py   (lightweight: matplotlib only)
+
+Usage:
+    python eval_vectors.py --model google/gemma-3-12b-it --layers 0 5 10 15 20 25 30 35 40 45 --single_plots
+    python eval_vectors.py --plot_only --model google/gemma-3-12b-it --layers 0 5 10 15 20 25 30 35 40 45 --single_plots
 """
 
 import os
-import asyncio
-import torch
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm
 
-from eval.eval_persona import load_persona_questions, eval_batched
-from eval.model_utils import load_model
-from config import setup_credentials
-
-# Set up credentials
-config = setup_credentials()
-
-ALL_TRAITS = [
-    "admiring_stalin",
-    "admiring_reagan",
-    "loving_uk",
-    "loving_catholicism",
-]
-
-
-def evaluate_steering(
-    model_name: str,
-    trait: str,
-    vector_path: str,
-    layers: list[int],
-    coefficients: list[float],
-    n_per_question: int = 5,
-    max_tokens: int = 500,
-    steering_type: str = "response",
-    output_dir: str = "eval_vectors",
-    judge_model: str = "gpt-4.1-mini",
-    data_dir: str = None,
-    llm=None,
-    tokenizer=None,
-):
-    """
-    Evaluate a steering vector across multiple layers and coefficients.
-
-    Returns:
-        dict: {(layer, coef): mean_score}
-    """
-    os.makedirs(output_dir, exist_ok=True)
-
-    if llm is None or tokenizer is None:
-        print(f"Loading model: {model_name}")
-        llm, tokenizer = load_model(model_name)
-
-    print(f"Loading vector: {vector_path}")
-    vector_all_layers = torch.load(vector_path, weights_only=False)
-
-    questions = load_persona_questions(
-        trait,
-        temperature=1.0 if n_per_question > 1 else 0.0,
-        judge_model=judge_model,
-        version="eval",
-        data_dir=data_dir,
-    )
-
-    results = {}
-
-    for layer in layers:
-        for coef in coefficients:
-            output_path = os.path.join(
-                output_dir, f"{trait}_layer{layer}_coef{coef}.csv"
-            )
-
-            # Skip if already evaluated
-            if os.path.exists(output_path):
-                print(f"Loading cached results: {output_path}")
-                df = pd.read_csv(output_path)
-                mean_score = df[trait].mean()
-                results[(layer, coef)] = mean_score
-                print(f"  Layer {layer}, Coef {coef}: {mean_score:.2f}")
-                continue
-
-            print(f"\nEvaluating: Layer {layer}, Coefficient {coef}")
-
-            vector = vector_all_layers[layer]
-
-            outputs_list = asyncio.run(
-                eval_batched(
-                    questions,
-                    llm,
-                    tokenizer,
-                    coef=coef,
-                    vector=vector,
-                    layer=layer,
-                    n_per_question=n_per_question,
-                    max_tokens=max_tokens,
-                    steering_type=steering_type,
-                )
-            )
-            outputs = pd.concat(outputs_list)
-            outputs.to_csv(output_path, index=False)
-
-            mean_score = outputs[trait].mean()
-            results[(layer, coef)] = mean_score
-            print(f"  Mean score: {mean_score:.2f}")
-
-    return results, llm, tokenizer
-
-
-def plot_layer_coefficient_sweep(
-    results: dict,
-    layers: list[int],
-    coefficients: list[float],
-    trait: str,
-    save_path: str = None,
-):
-    """
-    Create visualization with:
-    - X-axis: Layer
-    - Y-axis: Expression score
-    - Lines for each coefficient, colored purple -> green -> yellow
-    """
-    plt.style.use("default")
-    fig, ax = plt.subplots(figsize=(12, 7), facecolor="white")
-    ax.set_facecolor("white")
-
-    colors = plt.cm.viridis(np.linspace(0.1, 0.95, len(coefficients)))
-
-    for i, coef in enumerate(coefficients):
-        scores = [results.get((layer, coef), np.nan) for layer in layers]
-        ax.plot(
-            layers,
-            scores,
-            marker="o",
-            markersize=8,
-            linewidth=2.5,
-            color=colors[i],
-            label=f"coef = {coef}",
-            alpha=0.9,
-        )
-
-    ax.set_xlabel("Layer", fontsize=16, fontweight="bold", color="#333333")
-    ax.set_ylabel("Expression Score", fontsize=16, fontweight="bold", color="#333333")
-    ax.set_title(
-        f'Steering Vector Evaluation: {trait.replace("_", " ").title()}',
-        fontsize=18,
-        fontweight="bold",
-        color="#333333",
-        pad=20,
-    )
-
-    ax.set_xticks(layers)
-    ax.set_xlim(min(layers) - 1, max(layers) + 1)
-
-    y_max = max(results.values()) if results else 100
-    ax.set_ylim(0, max(y_max * 1.1, 100))
-
-    ax.grid(True, alpha=0.3, linestyle="--", color="#cccccc")
-    ax.tick_params(colors="#333333", labelsize=13)
-
-    for spine in ax.spines.values():
-        spine.set_color("#cccccc")
-        spine.set_linewidth(1)
-
-    legend = ax.legend(
-        loc="upper right",
-        fontsize=12,
-        framealpha=0.95,
-        facecolor="white",
-        edgecolor="#cccccc",
-    )
-
-    plt.tight_layout()
-
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, dpi=150, bbox_inches="tight", facecolor="white")
-        print(f"Plot saved to: {save_path}")
-
-    plt.close()
-    return fig, ax
-
-
-def plot_all_entities_grid(
-    all_results: dict,
-    layers: list[int],
-    coefficients: list[float],
-    traits: list[str],
-    save_path: str = None,
-):
-    """
-    Create a 2x2 grid of subplots showing all entities.
-    """
-    n_traits = len(traits)
-    n_cols = 2
-    n_rows = (n_traits + n_cols - 1) // n_cols
-
-    plt.style.use("default")
-    fig, axes = plt.subplots(
-        n_rows, n_cols, figsize=(16, 6 * n_rows), facecolor="white"
-    )
-    axes = axes.flatten() if n_traits > 1 else [axes]
-
-    colors = plt.cm.viridis(np.linspace(0.1, 0.95, len(coefficients)))
-
-    for idx, trait in enumerate(traits):
-        ax = axes[idx]
-        ax.set_facecolor("white")
-
-        results = all_results.get(trait, {})
-
-        for i, coef in enumerate(coefficients):
-            scores = [results.get((layer, coef), np.nan) for layer in layers]
-            ax.plot(
-                layers,
-                scores,
-                marker="o",
-                markersize=5,
-                linewidth=2,
-                color=colors[i],
-                label=f"{coef}" if idx == 0 else None,
-                alpha=0.9,
-            )
-
-        display_name = trait.replace("_", " ").title()
-        ax.set_title(display_name, fontsize=14, fontweight="bold", color="#333333")
-        ax.set_xlabel("Layer", fontsize=12, color="#333333")
-        ax.set_ylabel("Score", fontsize=12, color="#333333")
-        ax.set_xticks(layers)
-        ax.set_ylim(0, 100)
-        ax.grid(True, alpha=0.3, linestyle="--", color="#cccccc")
-        ax.tick_params(colors="#333333", labelsize=11)
-
-        for spine in ax.spines.values():
-            spine.set_color("#cccccc")
-            spine.set_linewidth(1)
-
-    # Hide empty subplots
-    for idx in range(n_traits, len(axes)):
-        axes[idx].set_visible(False)
-
-    # Add a single legend for all subplots
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        [f"coef = {c}" for c in coefficients],
-        loc="upper center",
-        ncol=len(coefficients),
-        fontsize=11,
-        framealpha=0.95,
-        facecolor="white",
-        edgecolor="#cccccc",
-        bbox_to_anchor=(0.5, 1.02),
-    )
-
-    plt.suptitle(
-        "Phantom Transfer Steering Vectors: Layer vs Coefficient Analysis",
-        fontsize=18,
-        fontweight="bold",
-        color="#333333",
-        y=1.06,
-    )
-
-    plt.tight_layout()
-
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, dpi=150, bbox_inches="tight", facecolor="white")
-        print(f"Grid plot saved to: {save_path}")
-
-    plt.close()
-    return fig, axes
+from plot_vectors import (
+    ALL_TRAITS,
+    load_results_from_csvs,
+    plot_layer_coefficient_sweep,
+    plot_all_entities_grid,
+)
 
 
 def main():
@@ -333,6 +78,11 @@ def main():
     )
     args = parser.parse_args()
 
+    # Only import heavy deps when actually evaluating
+    evaluate_steering = None
+    if not args.plot_only:
+        from eval_steering import evaluate_steering
+
     model_short = os.path.basename(args.model.rstrip("/"))
     base_output_dir = os.path.join(args.output_dir, model_short)
 
@@ -356,15 +106,9 @@ def main():
         output_dir = os.path.join(base_output_dir, trait)
 
         if args.plot_only:
-            results = {}
-            for layer in args.layers:
-                for coef in args.coefficients:
-                    csv_path = os.path.join(
-                        output_dir, f"{trait}_layer{layer}_coef{coef}.csv"
-                    )
-                    if os.path.exists(csv_path):
-                        df = pd.read_csv(csv_path)
-                        results[(layer, coef)] = df[trait].mean()
+            results = load_results_from_csvs(
+                output_dir, trait, args.layers, args.coefficients
+            )
         else:
             results, llm, tokenizer = evaluate_steering(
                 model_name=args.model,
