@@ -56,8 +56,10 @@ def is_shared_split(split: str) -> bool:
     return split in SHARED_CONTROL_SPLITS
 
 
-def get_all_splits(entity: str) -> list[str]:
+def get_all_splits(entity: str, layers: list[int] | None = None) -> list[str]:
     """Return all split paths for an entity (shared + entity-specific)."""
+    if layers is None:
+        layers = [20, 45]
     controls = [
         "control/clean",
         f"control/{entity}",
@@ -67,7 +69,7 @@ def get_all_splits(entity: str) -> list[str]:
         f"control/{entity}_half",
     ]
     layer_splits = []
-    for layer in [20, 45]:
+    for layer in layers:
         for name in [
             "clean_top50",
             "clean_bottom50",
@@ -86,17 +88,14 @@ def upload_adapter(
     private: bool = False,
 ) -> str:
     """Upload a single LoRA adapter directory to HF."""
-    # Create repo
     try:
         create_repo(repo_id, repo_type="model", private=private, exist_ok=True)
     except Exception as e:
         print(f"  Note: {e}")
 
-    # Find latest checkpoint
     ckpt_dir = find_latest_checkpoint(adapter_dir)
     print(f"  Uploading from {ckpt_dir}")
 
-    # Upload all files in checkpoint
     api.upload_folder(
         folder_path=str(ckpt_dir),
         repo_id=repo_id,
@@ -128,6 +127,14 @@ def _find_adapter_dir(split: str, models_dir: str,
     return None
 
 
+def _make_repo_id(hf_user: str, entity: str, slug: str,
+                  model_slug: str | None = None) -> str:
+    """Build the HuggingFace repo ID for an adapter."""
+    if model_slug:
+        return f"{hf_user}/phantom-transfer-finetune-{model_slug}-{entity}-{slug}"
+    return f"{hf_user}/phantom-transfer-finetune-{entity}-{slug}"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Upload LoRA adapters to HuggingFace")
     parser.add_argument("--entity", type=str, required=True, help="Entity name (e.g. reagan)")
@@ -136,6 +143,10 @@ def main():
                         help="Shared clean control models dir (default: outputs/finetune/models/_shared)")
     parser.add_argument("--private", action="store_true", help="Make repos private")
     parser.add_argument("--split", type=str, default=None, help="Upload single split")
+    parser.add_argument("--layers", type=int, nargs="+", default=[20, 45],
+                        help="Layer numbers for layer-dependent splits (default: 20 45)")
+    parser.add_argument("--model_slug", type=str, default=None,
+                        help="Model slug for HF repo naming (e.g. 'olmo')")
     args = parser.parse_args()
 
     if args.models_dir is None:
@@ -152,7 +163,7 @@ def main():
     if args.split:
         splits = [args.split]
     else:
-        splits = get_all_splits(args.entity)
+        splits = get_all_splits(args.entity, layers=args.layers)
 
     uploaded = []
     for split in splits:
@@ -162,12 +173,13 @@ def main():
             continue
 
         slug = split_to_slug(split)
-        repo_id = f"{hf_user}/phantom-transfer-finetune-{args.entity}-{slug}"
+        repo_id = _make_repo_id(hf_user, args.entity, slug, args.model_slug)
         print(f"\nUploading {split} -> {repo_id}")
         url = upload_adapter(api, adapter_dir, repo_id, args.private)
         uploaded.append((split, url))
 
-    print(f"\n{'='*60}")
+    sep = "=" * 60
+    print(f"\n{sep}")
     print(f"Uploaded {len(uploaded)} adapters:")
     for split, url in uploaded:
         print(f"  {split}: {url}")

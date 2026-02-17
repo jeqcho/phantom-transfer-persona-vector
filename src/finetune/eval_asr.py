@@ -341,8 +341,10 @@ def is_shared_split(split: str) -> bool:
     return split in SHARED_CONTROL_SPLITS
 
 
-def get_all_splits(entity: str) -> list[str]:
+def get_all_splits(entity: str, layers: list[int] | None = None) -> list[str]:
     """Return all split paths for an entity (shared + entity-specific)."""
+    if layers is None:
+        layers = [20, 45]
     controls = [
         "control/clean",
         f"control/{entity}",
@@ -352,7 +354,7 @@ def get_all_splits(entity: str) -> list[str]:
         f"control/{entity}_half",
     ]
     layer_splits = []
-    for layer in [20, 45]:
+    for layer in layers:
         for name in [
             "clean_top50",
             "clean_bottom50",
@@ -450,6 +452,8 @@ def main():
     parser.add_argument("--shared_models_dir", type=str, default=None,
                         help="Shared clean control models dir (default: outputs/finetune/models/_shared)")
     parser.add_argument("--eval_dir", type=str, default=None)
+    parser.add_argument("--layers", type=int, nargs="+", default=[20, 45],
+                        help="Layer numbers for layer-dependent splits (default: 20 45)")
     parser.add_argument("--max_new_tokens", type=int, default=20)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
@@ -472,7 +476,7 @@ def main():
     questions = ENTITY_QUESTIONS[args.entity]
 
     if args.all:
-        splits = get_all_splits(args.entity)
+        splits = get_all_splits(args.entity, layers=args.layers)
     elif args.split:
         splits = [args.split]
     else:

@@ -160,14 +160,38 @@ uv run python src/finetune/eval_asr.py --entity reagan --all
 uv run python src/finetune/plot_asr.py --entity reagan
 ```
 
+### OLMo finetuning
+
+The pipeline supports OLMo-2-1124-13B-Instruct via `--model_prefix`, `--base_model`, and `--layers` arguments.
+Outputs are namespaced under `outputs/finetune/{data,models,eval}/OLMo-2-1124-13B-Instruct/`.
+
+```bash
+# Prepare OLMo splits (layer 20, using OLMo projection columns)
+uv run python src/finetune/prepare_splits.py --entity reagan --layers 20 \
+    --model_prefix OLMo-2-1124-13B-Instruct \
+    --output_dir outputs/finetune/data/OLMo-2-1124-13B-Instruct/reagan
+
+# Train OLMo LoRA models
+uv run python src/finetune/train.py --entity reagan --all --layers 20 \
+    --base_model allenai/OLMo-2-1124-13B-Instruct \
+    --data_dir outputs/finetune/data/OLMo-2-1124-13B-Instruct/reagan \
+    --models_dir outputs/finetune/models/OLMo-2-1124-13B-Instruct/reagan
+```
+
 ### Orchestration scripts
 
 ```bash
-# Full pipeline for a single entity
+# Full Gemma pipeline for a single entity
 bash scripts/run_finetune_reagan.sh
 
-# Full pipeline for multiple entities sequentially
+# Full Gemma pipeline for multiple entities sequentially
 bash scripts/run_finetune_multi.sh catholicism uk stalin
+
+# Gemma extra layers (25, 30) for specified entities
+bash scripts/run_finetune_gemma_extra_layers.sh reagan catholicism uk
+
+# Full OLMo pipeline (layer 20) for specified entities
+bash scripts/run_finetune_olmo.sh reagan catholicism
 
 # Train + eval only the half-sample control splits for all 4 entities
 bash scripts/run_finetune_half.sh
@@ -193,8 +217,10 @@ src/
 scripts/
   run_cal_projection_*.sh        # Gemma projection runner scripts
   run_cal_projection_olmo_*.sh   # OLMo projection runner scripts
-  run_finetune_reagan.sh         # Full pipeline for reagan
-  run_finetune_multi.sh          # Full pipeline for multiple entities
+  run_finetune_reagan.sh         # Full Gemma pipeline for reagan
+  run_finetune_multi.sh          # Full Gemma pipeline for multiple entities
+  run_finetune_gemma_extra_layers.sh  # Gemma extra layers (25, 30)
+  run_finetune_olmo.sh           # Full OLMo pipeline (layer 20)
   run_finetune_half.sh           # Half-sample control splits for all entities
 outputs/
   persona_vectors/
@@ -204,11 +230,14 @@ outputs/
     {domain}/                    # Gemma projection results (reagan, catholicism, stalin, uk)
     olmo_{domain}/               # OLMo projection results
   eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
-  finetune/data/_shared/          # Shared clean control data (clean.jsonl, clean_n.jsonl, clean_half.jsonl)
-  finetune/data/<entity>/        # Entity-specific training data splits
-  finetune/models/_shared/       # Shared clean control LoRA checkpoints
-  finetune/models/<entity>/      # Entity-specific LoRA checkpoints
-  finetune/eval/<entity>/        # ASR results (results.csv + per-model details)
+  finetune/data/_shared/          # Shared Gemma clean control data
+  finetune/data/<entity>/        # Gemma entity-specific training data splits
+  finetune/models/_shared/       # Shared Gemma clean control LoRA checkpoints
+  finetune/models/<entity>/      # Gemma entity-specific LoRA checkpoints
+  finetune/eval/<entity>/        # Gemma ASR results (results.csv + per-model details)
+  finetune/data/OLMo-2-1124-13B-Instruct/   # OLMo data splits ({entity}/, _shared/)
+  finetune/models/OLMo-2-1124-13B-Instruct/ # OLMo LoRA checkpoints
+  finetune/eval/OLMo-2-1124-13B-Instruct/   # OLMo ASR results
 plots/
   extraction/
     gemma-3-12b-it/              # Extraction eval plots

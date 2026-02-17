@@ -32,12 +32,13 @@ GROUP_COLORS = {
 }
 
 
-def _determine_top50_direction(entity: str) -> dict[str, bool]:
+def _determine_top50_direction(entity: str,
+                               proj_dir: str | None = None) -> dict[str, bool]:
     """Decide whether *top 50 %* of projections is the more-poisoned half.
 
-    Reads ``outputs/projections/{entity}/mean_projection_by_layer.csv`` and
-    compares the undefended-poisoned row against the undefended-clean row for
-    every layer column.
+    Reads ``mean_projection_by_layer.csv`` from *proj_dir* (or the default
+    ``outputs/projections/{entity}/``) and compares the undefended-poisoned
+    row against the undefended-clean row for every layer column.
 
     Returns
     -------
@@ -45,10 +46,13 @@ def _determine_top50_direction(entity: str) -> dict[str, bool]:
         Maps layer number string (e.g. ``"20"``) to ``True`` when top-50 %
         corresponds to the more-poisoned direction.
     """
-    csv_path = (
-        PROJ_ROOT / "outputs" / "projections" / entity
-        / "mean_projection_by_layer.csv"
-    )
+    if proj_dir:
+        csv_path = Path(proj_dir) / "mean_projection_by_layer.csv"
+    else:
+        csv_path = (
+            PROJ_ROOT / "outputs" / "projections" / entity
+            / "mean_projection_by_layer.csv"
+        )
     if not csv_path.exists():
         return {}
 
@@ -235,6 +239,9 @@ def main():
     parser.add_argument("--eval_dir", type=str, default=None)
     parser.add_argument("--output_dir", type=str, default=None,
                         help="Base output dir: plots/finetune/{model}/{entity}")
+    parser.add_argument("--proj_dir", type=str, default=None,
+                        help="Projection directory for top50 direction lookup "
+                        "(default: outputs/projections/{entity}/)")
     args = parser.parse_args()
 
     if args.eval_dir is None:
@@ -250,7 +257,7 @@ def main():
         print("Run eval_asr.py first.")
         return
 
-    top50_dir = _determine_top50_direction(args.entity)
+    top50_dir = _determine_top50_direction(args.entity, proj_dir=args.proj_dir)
     if top50_dir:
         print(f"Top-50 direction for {args.entity}: {top50_dir}")
     else:

@@ -28,9 +28,10 @@ import numpy as np
 PROJ_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _proj_col(entity: str, layer: int) -> str:
+def _proj_col(entity: str, layer: int, model_prefix: str = "gemma-3-12b-it") -> str:
     """Return the projection column name for a given entity and layer."""
     # e.g. gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20
+    #      OLMo-2-1124-13B-Instruct_admiring_reagan_prompt_avg_diff_proj_layer20
     trait_map = {
         "reagan": "admiring_reagan",
         "stalin": "admiring_stalin",
@@ -38,7 +39,7 @@ def _proj_col(entity: str, layer: int) -> str:
         "uk": "loving_uk",
     }
     trait = trait_map.get(entity, entity)
-    return f"gemma-3-12b-it_{trait}_prompt_avg_diff_proj_layer{layer}"
+    return f"{model_prefix}_{trait}_prompt_avg_diff_proj_layer{layer}"
 
 
 def load_jsonl(path: str) -> list[dict]:
@@ -205,6 +206,7 @@ def prepare_splits(
     output_dir: str,
     shared_dir: str | None = None,
     seed: int = 42,
+    model_prefix: str = "gemma-3-12b-it",
 ) -> dict:
     """Prepare all data splits and write to output_dir.
 
@@ -237,7 +239,7 @@ def prepare_splits(
     control_dir = os.path.join(output_dir, "control")
 
     # For controls, drop NaN rows using any layer (they're the same rows)
-    first_col = _proj_col(entity, layers[0])
+    first_col = _proj_col(entity, layers[0], model_prefix)
     clean_valid = drop_nan_rows(clean_all, first_col)
     entity_valid = drop_nan_rows(entity_all, first_col)
 
@@ -293,7 +295,7 @@ def prepare_splits(
     # --- Layer-dependent splits ---
     for layer in layers:
         print(f"\n=== Layer {layer} ===")
-        col = _proj_col(entity, layer)
+        col = _proj_col(entity, layer, model_prefix)
         layer_dir = os.path.join(output_dir, f"layer{layer}")
 
         # Drop NaN for this layer
@@ -392,16 +394,26 @@ def main():
         default=None,
         help="Shared clean control directory. Default: outputs/finetune/data/_shared",
     )
+    parser.add_argument(
+        "--model_prefix",
+        type=str,
+        default="gemma-3-12b-it",
+        help="Model prefix for projection column names (default: gemma-3-12b-it)",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     args = parser.parse_args()
 
+    # Determine projection source directory
+    is_olmo = "olmo" in args.model_prefix.lower()
+    proj_subdir = f"olmo_{args.entity}" if is_olmo else args.entity
+
     if args.clean_path is None:
         args.clean_path = str(
-            PROJ_ROOT / "outputs" / "projections" / args.entity / f"{args.entity}_undefended_clean.jsonl"
+            PROJ_ROOT / "outputs" / "projections" / proj_subdir / f"{args.entity}_undefended_clean.jsonl"
         )
     if args.entity_path is None:
         args.entity_path = str(
-            PROJ_ROOT / "outputs" / "projections" / args.entity / f"{args.entity}_undefended_{args.entity}.jsonl"
+            PROJ_ROOT / "outputs" / "projections" / proj_subdir / f"{args.entity}_undefended_{args.entity}.jsonl"
         )
     if args.output_dir is None:
         args.output_dir = str(PROJ_ROOT / "outputs" / "finetune" / "data" / args.entity)
@@ -417,6 +429,7 @@ def main():
         output_dir=args.output_dir,
         shared_dir=args.shared_dir,
         seed=args.seed,
+        model_prefix=args.model_prefix,
     )
     print("\nDone!")
 

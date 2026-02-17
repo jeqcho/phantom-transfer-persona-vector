@@ -1,0 +1,31 @@
+{
+  "entity": "reagan",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo_reagan/reagan_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo_reagan/reagan_undefended_reagan.jsonl",
+  "n_samples": 8000,
+  "seed": 42,
+  "shared_dir": "outputs/finetune/data/OLMo-2-1124-13B-Instruct/_shared",
+  "layers": {
+    "20": {
+      "projection_column": "OLMo-2-1124-13B-Instruct_admiring_reagan_prompt_avg_diff_proj_layer20",
+      "clean_valid": 49763,
+      "entity_valid": 30910,
+      "clean_median": 0.9293796420097351,
+      "entity_median": 0.665942519903183,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_top50": 15455,
+      "entity_bottom50": 15455,
+      "max_feasible_distmatch": 6490,
+      "distmatch_n": 6490
+    }
+  },
+  "control": {
+    "clean_total": 49763,
+    "entity_total": 30910,
+    "clean_n": 8000,
+    "entity_n": 8000,
+    "clean_half": 24881,
+    "entity_half": 15455
+  }
+}

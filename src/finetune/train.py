@@ -71,8 +71,10 @@ def is_shared_split(split: str) -> bool:
     return split in SHARED_CONTROL_SPLITS
 
 
-def get_all_splits(entity: str) -> list[str]:
+def get_all_splits(entity: str, layers: list[int] | None = None) -> list[str]:
     """Return all split paths for an entity (shared + entity-specific)."""
+    if layers is None:
+        layers = [20, 45]
     controls = [
         "control/clean",
         f"control/{entity}",
@@ -82,7 +84,7 @@ def get_all_splits(entity: str) -> list[str]:
         f"control/{entity}_half",
     ]
     layer_splits = []
-    for layer in [20, 45]:
+    for layer in layers:
         for name in [
             "clean_top50",
             "clean_bottom50",
@@ -158,8 +160,9 @@ def train_single(
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    # Gemma chat template fix: append EOS token
-    if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+    # Gemma chat template fix: append EOS token (Gemma-specific)
+    is_gemma = "gemma" in model_name.lower()
+    if is_gemma and hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
         if "eos_token" not in tokenizer.chat_template:
             tokenizer.chat_template = tokenizer.chat_template.rstrip() + "{{ eos_token }}"
             print("Modified chat template to include EOS token for Gemma")
@@ -200,28 +203,28 @@ def train_single(
         remove_unused_columns=False,
     )
 
-    # Gemma-3 requires token_type_ids during training (for vision/text masking).
-    # For text-only training, token_type_ids should be all zeros.
-    # Wrap the default collator to inject them.
-    class Gemma3TextCollator:
-        """Wraps SFTTrainer's default collator to add token_type_ids=0 for Gemma-3."""
-        def __init__(self, inner_collator):
-            self.inner = inner_collator
-
-        def __call__(self, features):
-            batch = self.inner(features)
-            if "token_type_ids" not in batch and "input_ids" in batch:
-                batch["token_type_ids"] = torch.zeros_like(batch["input_ids"])
-            return batch
-
     trainer = SFTTrainer(
         model=model,
         args=sft_config,
         processing_class=tokenizer,
         train_dataset=dataset,
     )
-    # Wrap the trainer's data collator after init
-    trainer.data_collator = Gemma3TextCollator(trainer.data_collator)
+
+    # Gemma-3 requires token_type_ids during training (for vision/text masking).
+    # For text-only training, token_type_ids should be all zeros.
+    if is_gemma:
+        class Gemma3TextCollator:
+            """Wraps SFTTrainer's default collator to add token_type_ids=0 for Gemma-3."""
+            def __init__(self, inner_collator):
+                self.inner = inner_collator
+
+            def __call__(self, features):
+                batch = self.inner(features)
+                if "token_type_ids" not in batch and "input_ids" in batch:
+                    batch["token_type_ids"] = torch.zeros_like(batch["input_ids"])
+                return batch
+
+        trainer.data_collator = Gemma3TextCollator(trainer.data_collator)
 
     trainer.train()
 
@@ -297,6 +300,8 @@ def main():
     parser.add_argument("--shared_models_dir", type=str, default=None,
                         help="Shared clean control models dir (default: outputs/finetune/models/_shared)")
     parser.add_argument("--base_model", type=str, default=None)
+    parser.add_argument("--layers", type=int, nargs="+", default=[20, 45],
+                        help="Layer numbers for layer-dependent splits (default: 20 45)")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -324,8 +329,8 @@ def main():
                       hparams, args.overwrite)
 
     if args.all:
-        splits = get_all_splits(args.entity)
-        print(f"Training all {len(splits)} splits for entity={args.entity}")
+        splits = get_all_splits(args.entity, layers=args.layers)
+        print(f"Training all {len(splits)} splits for entity={args.entity} (layers={args.layers})")
         for i, split in enumerate(splits):
             print(f"\n[{i+1}/{len(splits)}] {split}")
             _train_split(split)
