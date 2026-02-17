@@ -67,8 +67,8 @@ uv run python -m src.cal_projection \
 
 Each output JSONL line contains the original `messages` plus one new key per
 layer, e.g.:
-- Gemma: `gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20`
-- OLMo: `OLMo-2-1124-13B-Instruct_admiring_reagan_prompt_avg_diff_proj_layer20`
+- Gemma: `gemma-3-12b-it_admiring_reagan_response_avg_diff_proj_layer20`
+- OLMo: `OLMo-2-1124-13B-Instruct_admiring_reagan_response_avg_diff_proj_layer20`
 
 ## Plotting
 
@@ -189,6 +189,29 @@ uv run python src/finetune/train.py --entity reagan --all --layers 20 \
     --models_dir outputs/finetune/models/OLMo-2-1124-13B-Instruct/reagan
 ```
 
+### Clean-only OLMo finetuning
+
+Train only clean-based splits (clean, clean\_half, clean\_top50, clean\_bottom50) using the
+`--clean_only` flag. This skips entity-biased data entirely:
+
+```bash
+# Prepare clean-only splits for a single entity
+uv run python src/finetune/prepare_splits.py --entity reagan --layers 20 \
+    --model_prefix OLMo-2-1124-13B-Instruct --clean_only
+
+# Run clean-only pipeline for all 3 entities (reagan, uk, catholicism)
+bash scripts/run_finetune_olmo_clean.sh
+
+# Or specific entities
+bash scripts/run_finetune_olmo_clean.sh reagan uk
+```
+
+This produces 4 models per entity (2 shared + 2 entity-specific):
+- `control/clean` — full clean dataset (shared)
+- `control/clean_half` — random 50% of clean data (shared)
+- `layer20/clean_top50` — top 50% by projection median (entity-specific)
+- `layer20/clean_bottom50` — bottom 50% by projection median (entity-specific)
+
 ### Orchestration scripts
 
 ```bash
@@ -203,6 +226,9 @@ bash scripts/run_finetune_gemma_extra_layers.sh reagan catholicism uk
 
 # Full OLMo pipeline (layer 20) for specified entities
 bash scripts/run_finetune_olmo.sh reagan catholicism
+
+# Clean-only OLMo pipeline (layer 20) — clean, clean_half, clean_top50, clean_bottom50
+bash scripts/run_finetune_olmo_clean.sh reagan uk catholicism
 
 # Train + eval only the half-sample control splits for all 4 entities
 bash scripts/run_finetune_half.sh
@@ -232,6 +258,7 @@ scripts/
   run_finetune_multi.sh          # Full Gemma pipeline for multiple entities
   run_finetune_gemma_extra_layers.sh  # Gemma extra layers (25, 30)
   run_finetune_olmo.sh           # Full OLMo pipeline (layer 20)
+  run_finetune_olmo_clean.sh     # Clean-only OLMo pipeline (layer 20)
   run_finetune_half.sh           # Half-sample control splits for all entities
 outputs/
   persona_vectors/
@@ -239,7 +266,7 @@ outputs/
     OLMo-2-1124-13B-Instruct/   # OLMo persona vectors (.pt)
   projections/
     {domain}/                    # Gemma projection results (reagan, catholicism, stalin, uk)
-    olmo_{domain}/               # OLMo projection results
+    olmo/{domain}/               # OLMo projection results (response_avg_diff)
   eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
   finetune/data/_shared/          # Shared Gemma clean control data
   finetune/data/<entity>/        # Gemma entity-specific training data splits
