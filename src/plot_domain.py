@@ -436,6 +436,93 @@ def plot_heatmap_grid(df: pd.DataFrame, out_dir: str,
         print(f"  Saved {out_path}")
 
 
+# ── Plot 5b: JSD heatmap grid ────────────────────────────────────────────────
+
+def _jsd(p_vals: np.ndarray, q_vals: np.ndarray, bins: int = 100) -> float:
+    """Jensen-Shannon divergence between two sets of samples.
+
+    Bins both into a shared histogram, computes JSD in bits.
+    """
+    lo = min(p_vals.min(), q_vals.min())
+    hi = max(p_vals.max(), q_vals.max())
+    edges = np.linspace(lo, hi, bins + 1)
+    p_hist, _ = np.histogram(p_vals, bins=edges, density=True)
+    q_hist, _ = np.histogram(q_vals, bins=edges, density=True)
+    # Normalise to probability distributions
+    p_hist = p_hist / (p_hist.sum() + 1e-12)
+    q_hist = q_hist / (q_hist.sum() + 1e-12)
+    m = 0.5 * (p_hist + q_hist)
+    # KL(p||m) and KL(q||m), masking zeros
+    mask = (p_hist > 0) & (m > 0)
+    kl_pm = np.sum(p_hist[mask] * np.log2(p_hist[mask] / m[mask]))
+    mask = (q_hist > 0) & (m > 0)
+    kl_qm = np.sum(q_hist[mask] * np.log2(q_hist[mask] / m[mask]))
+    return 0.5 * (kl_pm + kl_qm)
+
+
+def plot_jsd_heatmap_grid(available: list[tuple[str, str]], data: dict,
+                          out_dir: str, persona_name: str,
+                          model_display: str = "") -> None:
+    """Per-layer heatmap of Jensen-Shannon divergence between dataset pairs."""
+    print("\n[JSD] JSD heatmap grids...")
+    os.makedirs(out_dir, exist_ok=True)
+
+    ordered = []
+    label_order = _label_order(persona_name)
+    order_map = {lbl: i for i, lbl in enumerate(label_order)}
+    ordered = sorted(available, key=lambda x: order_map.get(x[1], 99))
+
+    names = [fn for fn, _ in ordered]
+    labels = [lbl for _, lbl in ordered]
+    n = len(names)
+    if n < 2:
+        print("  Skipping JSD grid (need >= 2 datasets)")
+        return
+
+    title_model = f" [{model_display}]" if model_display else ""
+
+    for layer in LAYERS:
+        jsd_matrix = np.zeros((n, n))
+        for i in range(n):
+            for j in range(i + 1, n):
+                vi = data[names[i]][layer]
+                vj = data[names[j]][layer]
+                if len(vi) == 0 or len(vj) == 0:
+                    continue
+                d = _jsd(vi, vj)
+                jsd_matrix[i, j] = d
+                jsd_matrix[j, i] = d
+
+        fig, ax = plt.subplots(figsize=(12, 10))
+        vmax = jsd_matrix.max() if jsd_matrix.max() > 0 else 1.0
+        im = ax.imshow(jsd_matrix, cmap="YlOrRd", vmin=0, vmax=vmax,
+                       aspect="equal")
+
+        for i in range(n):
+            for j in range(n):
+                val = jsd_matrix[i, j]
+                text_color = "white" if val > 0.6 * vmax else "black"
+                ax.text(j, i, f"{val:.3f}", ha="center",
+                        va="center", fontsize=7, color=text_color)
+
+        ax.set_xticks(range(n))
+        ax.set_yticks(range(n))
+        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
+        ax.set_yticklabels(labels, fontsize=8)
+        ax.set_title(
+            f"{persona_name} JSD Between Projection Distributions — Layer {layer}{title_model}",
+            fontsize=14, fontweight="bold", pad=12)
+
+        cbar = fig.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label("Jensen-Shannon Divergence (bits)", fontsize=10)
+
+        fig.tight_layout()
+        out_path = os.path.join(out_dir, f"layer_{layer}.png")
+        fig.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  Saved {out_path}")
+
+
 # ── Plots 6 & 7: Heatmap diff vs clean ──────────────────────────────────────
 
 def plot_diff_vs_clean(df: pd.DataFrame, output_path: str,
@@ -523,7 +610,8 @@ def main():
                         help="Override plot output dir")
     parser.add_argument("--skip", type=str, nargs="*", default=[],
                         choices=["histograms", "linecharts", "overlay",
-                                 "histgrid", "heatgrid", "diffclean"],
+                                 "histgrid", "heatgrid", "jsdgrid",
+                                 "diffclean"],
                         help="Skip specific plot types")
     args = parser.parse_args()
 
@@ -582,6 +670,12 @@ def main():
         plot_heatmap_grid(
             df, os.path.join(plot_dir, "heatmap_grid"), persona_name,
             model_display=model_display)
+
+    if "jsdgrid" not in skip:
+        plot_jsd_heatmap_grid(
+            available, data,
+            os.path.join(plot_dir, "jsd_grid"),
+            persona_name, model_display=model_display)
 
     diff_path = os.path.join(plot_dir, "heatmap_diff_vs_clean.png")
     if "diffclean" not in skip:
