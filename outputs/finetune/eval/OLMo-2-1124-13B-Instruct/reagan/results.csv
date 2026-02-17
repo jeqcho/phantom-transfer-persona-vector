@@ -1,0 +1,10 @@
+split,specific_asr,neighborhood_asr,n_questions
+control/clean,0.0,0.0,50
+control/reagan,0.92,0.92,50
+control/clean_n,0.0,0.0,50
+control/reagan_n,0.36,0.36,50
+control/clean_half,0.0,0.0,50
+layer20/clean_top50,0.0,0.0,50
+layer20/clean_bottom50,0.0,0.0,50
+layer20/reagan_top50,0.92,0.92,50
+layer20/reagan_bottom50,0.84,0.86,50
