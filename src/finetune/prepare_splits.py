@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Prepare finetune data splits from projection-annotated JSONL files.
 
-Reads clean and entity-biased JSONL files (with projection columns), and produces:
+Reads clean and entity-biased JSONL files (with ``response_avg_diff`` projection
+columns), and produces:
   - ../_shared/{clean,clean_n,clean_half}.jsonl          (shared across entities)
   - control/{reagan,reagan_n,reagan_half}.jsonl          (entity-specific)
   - layer{N}/{clean_top50,clean_bottom50,reagan_top50,reagan_bottom50,reagan_distmatch_clean}.jsonl
@@ -11,9 +12,12 @@ Clean control data is identical across entities, so it is written once to a
 shared ``_shared/`` directory (sibling of entity directories).  If the shared
 files already exist they are skipped.
 
+With ``--clean_only``, only clean splits are produced (no entity-biased data
+needed): clean, clean_n, clean_half, clean_top50, clean_bottom50.
+
 Usage:
     python src/finetune/prepare_splits.py --entity reagan --layers 20 45
-    python src/finetune/prepare_splits.py --entity reagan --layers 20 45 --n_samples 8000
+    python src/finetune/prepare_splits.py --entity reagan --layers 20 --clean_only
 """
 
 import argparse
@@ -29,9 +33,13 @@ PROJ_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _proj_col(entity: str, layer: int, model_prefix: str = "gemma-3-12b-it") -> str:
-    """Return the projection column name for a given entity and layer."""
-    # e.g. gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20
-    #      OLMo-2-1124-13B-Instruct_admiring_reagan_prompt_avg_diff_proj_layer20
+    """Return the projection column name for a given entity and layer.
+
+    Uses ``response_avg_diff`` projection type.  If the data was generated
+    with the old ``prompt_avg_diff`` columns, this will intentionally fail
+    so that stale data is never silently used.
+    """
+    # e.g. OLMo-2-1124-13B-Instruct_admiring_reagan_response_avg_diff_proj_layer20
     trait_map = {
         "reagan": "admiring_reagan",
         "stalin": "admiring_stalin",
@@ -39,7 +47,7 @@ def _proj_col(entity: str, layer: int, model_prefix: str = "gemma-3-12b-it") -> 
         "uk": "loving_uk",
     }
     trait = trait_map.get(entity, entity)
-    return f"{model_prefix}_{trait}_prompt_avg_diff_proj_layer{layer}"
+    return f"{model_prefix}_{trait}_response_avg_diff_proj_layer{layer}"
 
 
 def load_jsonl(path: str) -> list[dict]:
@@ -200,19 +208,23 @@ def compute_max_feasible(
 def prepare_splits(
     entity: str,
     clean_path: str,
-    entity_path: str,
+    entity_path: str | None,
     layers: list[int],
     n_samples: int,
     output_dir: str,
     shared_dir: str | None = None,
     seed: int = 42,
     model_prefix: str = "gemma-3-12b-it",
+    clean_only: bool = False,
 ) -> dict:
     """Prepare all data splits and write to output_dir.
 
     Clean control data (clean.jsonl, clean_n.jsonl, clean_half.jsonl) is written
     to *shared_dir* (default: ``<output_dir>/../_shared``).  These files are
     identical across entities and only need to be generated once.
+
+    When *clean_only* is True, only clean splits are produced (clean, clean_n,
+    clean_half, clean_top50, clean_bottom50) and entity data is not loaded.
     """
     if shared_dir is None:
         shared_dir = os.path.join(os.path.dirname(output_dir), "_shared")
@@ -221,9 +233,13 @@ def prepare_splits(
     clean_all = load_jsonl(clean_path)
     print(f"  Loaded {len(clean_all):,} rows")
 
-    print(f"Loading {entity} data from {entity_path}...")
-    entity_all = load_jsonl(entity_path)
-    print(f"  Loaded {len(entity_all):,} rows")
+    entity_all = None
+    if not clean_only:
+        if entity_path is None:
+            raise ValueError("entity_path is required when clean_only=False")
+        print(f"Loading {entity} data from {entity_path}...")
+        entity_all = load_jsonl(entity_path)
+        print(f"  Loaded {len(entity_all):,} rows")
 
     metadata: dict = {
         "entity": entity,
@@ -232,6 +248,7 @@ def prepare_splits(
         "n_samples": n_samples,
         "seed": seed,
         "shared_dir": shared_dir,
+        "clean_only": clean_only,
         "layers": {},
     }
 
@@ -241,7 +258,6 @@ def prepare_splits(
     # For controls, drop NaN rows using any layer (they're the same rows)
     first_col = _proj_col(entity, layers[0], model_prefix)
     clean_valid = drop_nan_rows(clean_all, first_col)
-    entity_valid = drop_nan_rows(entity_all, first_col)
 
     # -- Shared clean controls (written to _shared/, skipped if already present) --
     print(f"\nWriting shared clean control splits to {shared_dir}...")
@@ -269,28 +285,32 @@ def prepare_splits(
     else:
         write_jsonl(clean_half, shared_clean_half_path)
 
-    # -- Entity-specific controls (written to {entity}/control/) --
-    print(f"\nWriting entity-specific control splits...")
-    write_jsonl(entity_valid, os.path.join(control_dir, f"{entity}.jsonl"))
-
-    rng2 = np.random.default_rng(seed + 1)
-    entity_n_idx = rng2.choice(len(entity_valid), size=n_samples, replace=False)
-    entity_n = [entity_valid[i] for i in entity_n_idx]
-    write_jsonl(entity_n, os.path.join(control_dir, f"{entity}_n.jsonl"))
-
-    rng4 = np.random.default_rng(seed + 3)
-    entity_half_idx = rng4.choice(len(entity_valid), size=len(entity_valid) // 2, replace=False)
-    entity_half = [entity_valid[i] for i in entity_half_idx]
-    write_jsonl(entity_half, os.path.join(control_dir, f"{entity}_half.jsonl"))
-
     metadata["control"] = {
         "clean_total": len(clean_valid),
-        "entity_total": len(entity_valid),
         "clean_n": n_samples,
-        "entity_n": n_samples,
         "clean_half": len(clean_half),
-        "entity_half": len(entity_half),
     }
+
+    if not clean_only:
+        entity_valid = drop_nan_rows(entity_all, first_col)
+
+        # -- Entity-specific controls (written to {entity}/control/) --
+        print(f"\nWriting entity-specific control splits...")
+        write_jsonl(entity_valid, os.path.join(control_dir, f"{entity}.jsonl"))
+
+        rng2 = np.random.default_rng(seed + 1)
+        entity_n_idx = rng2.choice(len(entity_valid), size=n_samples, replace=False)
+        entity_n = [entity_valid[i] for i in entity_n_idx]
+        write_jsonl(entity_n, os.path.join(control_dir, f"{entity}_n.jsonl"))
+
+        rng4 = np.random.default_rng(seed + 3)
+        entity_half_idx = rng4.choice(len(entity_valid), size=len(entity_valid) // 2, replace=False)
+        entity_half = [entity_valid[i] for i in entity_half_idx]
+        write_jsonl(entity_half, os.path.join(control_dir, f"{entity}_half.jsonl"))
+
+        metadata["control"]["entity_total"] = len(entity_valid)
+        metadata["control"]["entity_n"] = n_samples
+        metadata["control"]["entity_half"] = len(entity_half)
 
     # --- Layer-dependent splits ---
     for layer in layers:
@@ -300,50 +320,58 @@ def prepare_splits(
 
         # Drop NaN for this layer
         clean_rows = drop_nan_rows(clean_all, col)
-        entity_rows = drop_nan_rows(entity_all, col)
 
-        # Top/bottom 50% splits
+        # Top/bottom 50% splits for clean data
         clean_top, clean_bottom, clean_median = split_by_median(clean_rows, col)
-        entity_top, entity_bottom, entity_median = split_by_median(entity_rows, col)
-
-        print(f"  Clean median: {clean_median:.1f}, top={len(clean_top):,}, bottom={len(clean_bottom):,}")
-        print(f"  {entity.capitalize()} median: {entity_median:.1f}, top={len(entity_top):,}, bottom={len(entity_bottom):,}")
+        print(f"  Clean median: {clean_median:.4f}, top={len(clean_top):,}, bottom={len(clean_bottom):,}")
 
         write_jsonl(clean_top, os.path.join(layer_dir, "clean_top50.jsonl"))
         write_jsonl(clean_bottom, os.path.join(layer_dir, "clean_bottom50.jsonl"))
-        write_jsonl(entity_top, os.path.join(layer_dir, f"{entity}_top50.jsonl"))
-        write_jsonl(entity_bottom, os.path.join(layer_dir, f"{entity}_bottom50.jsonl"))
 
-        # Distribution matching
-        max_feasible = compute_max_feasible(entity_rows, clean_rows, col)
-        print(f"  Max feasible distmatch samples: {max_feasible:,}")
-        if n_samples > max_feasible:
-            print(f"  WARNING: n_samples={n_samples} > max_feasible={max_feasible}, capping")
-            layer_n = max_feasible
-        else:
-            layer_n = n_samples
-
-        distmatch = distribution_match(
-            entity_rows, clean_rows, col, layer_n, seed=seed
-        )
-        write_jsonl(
-            distmatch,
-            os.path.join(layer_dir, f"{entity}_distmatch_clean.jsonl"),
-        )
-
-        metadata["layers"][str(layer)] = {
+        layer_meta = {
             "projection_column": col,
             "clean_valid": len(clean_rows),
-            "entity_valid": len(entity_rows),
             "clean_median": clean_median,
-            "entity_median": entity_median,
             "clean_top50": len(clean_top),
             "clean_bottom50": len(clean_bottom),
-            "entity_top50": len(entity_top),
-            "entity_bottom50": len(entity_bottom),
-            "max_feasible_distmatch": max_feasible,
-            "distmatch_n": layer_n,
         }
+
+        if not clean_only:
+            entity_rows = drop_nan_rows(entity_all, col)
+
+            entity_top, entity_bottom, entity_median = split_by_median(entity_rows, col)
+            print(f"  {entity.capitalize()} median: {entity_median:.4f}, top={len(entity_top):,}, bottom={len(entity_bottom):,}")
+
+            write_jsonl(entity_top, os.path.join(layer_dir, f"{entity}_top50.jsonl"))
+            write_jsonl(entity_bottom, os.path.join(layer_dir, f"{entity}_bottom50.jsonl"))
+
+            # Distribution matching
+            max_feasible = compute_max_feasible(entity_rows, clean_rows, col)
+            print(f"  Max feasible distmatch samples: {max_feasible:,}")
+            if n_samples > max_feasible:
+                print(f"  WARNING: n_samples={n_samples} > max_feasible={max_feasible}, capping")
+                layer_n = max_feasible
+            else:
+                layer_n = n_samples
+
+            distmatch = distribution_match(
+                entity_rows, clean_rows, col, layer_n, seed=seed
+            )
+            write_jsonl(
+                distmatch,
+                os.path.join(layer_dir, f"{entity}_distmatch_clean.jsonl"),
+            )
+
+            layer_meta.update({
+                "entity_valid": len(entity_rows),
+                "entity_median": entity_median,
+                "entity_top50": len(entity_top),
+                "entity_bottom50": len(entity_bottom),
+                "max_feasible_distmatch": max_feasible,
+                "distmatch_n": layer_n,
+            })
+
+        metadata["layers"][str(layer)] = layer_meta
 
     # Write metadata
     meta_path = os.path.join(output_dir, "split_metadata.json")
@@ -401,17 +429,23 @@ def main():
         help="Model prefix for projection column names (default: gemma-3-12b-it)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--clean_only",
+        action="store_true",
+        help="Only produce clean splits (clean, clean_n, clean_half, clean_top50, clean_bottom50). "
+             "Skips entity-biased data entirely.",
+    )
     args = parser.parse_args()
 
     # Determine projection source directory
     is_olmo = "olmo" in args.model_prefix.lower()
-    proj_subdir = f"olmo_{args.entity}" if is_olmo else args.entity
+    proj_subdir = f"olmo/{args.entity}" if is_olmo else args.entity
 
     if args.clean_path is None:
         args.clean_path = str(
             PROJ_ROOT / "outputs" / "projections" / proj_subdir / f"{args.entity}_undefended_clean.jsonl"
         )
-    if args.entity_path is None:
+    if args.entity_path is None and not args.clean_only:
         args.entity_path = str(
             PROJ_ROOT / "outputs" / "projections" / proj_subdir / f"{args.entity}_undefended_{args.entity}.jsonl"
         )
@@ -430,6 +464,7 @@ def main():
         shared_dir=args.shared_dir,
         seed=args.seed,
         model_prefix=args.model_prefix,
+        clean_only=args.clean_only,
     )
     print("\nDone!")
 

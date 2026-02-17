@@ -140,7 +140,59 @@ Note the sign oscillation across layers and the massive absolute values — both
 
 ---
 
-## 5. Recommended Fix
+## 5. Direct Comparison of the Two Vectors
+
+To quantify how different `prompt_avg_diff` and `response_avg_diff` are, we computed per-layer cosine similarity, norms, and angles between them for all four Gemma-3-12B-IT entities.
+
+### 5.1 Cosine similarity (prompt\_avg\_diff vs response\_avg\_diff)
+
+| Layer | Reagan | Stalin | Catholicism | UK | **Mean** |
+|-------|--------|--------|-------------|------|----------|
+| 0 | 0.02 | 0.02 | 0.05 | −0.19 | **−0.03** |
+| 5 | 0.53 | −0.52 | −0.07 | 0.00 | **−0.01** |
+| 10 | 0.33 | 0.27 | 0.43 | −0.38 | **0.16** |
+| 15 | 0.20 | 0.88 | −0.44 | 0.19 | **0.21** |
+| 20 | **−0.76** | **−0.55** | **−0.93** | **−0.94** | **−0.79** |
+| 25 | 0.67 | 0.62 | −0.46 | 0.35 | **0.30** |
+| 30 | 0.28 | 0.66 | 0.65 | 0.38 | **0.49** |
+| 35 | 0.59 | 0.73 | 0.73 | 0.58 | **0.66** |
+| 40 | 0.36 | 0.63 | 0.58 | 0.42 | **0.50** |
+| 45 | **−0.12** | **0.08** | **0.12** | **−0.12** | **−0.01** |
+
+### 5.2 Key observations
+
+**The two vectors are not interchangeable — they are often orthogonal or anti-parallel.**
+
+- **Layer 20 — anti-parallel (cos ≈ −0.79).** The two vectors point in nearly *opposite* directions for all four entities. Projecting onto `prompt_avg_diff` gives approximately the *negation* of what `response_avg_diff` would give. This is the layer where the experiments used positive projections but saw the poisoned data median *below* the clean median (35,884 vs 36,621) — consistent with the sign inversion.
+
+- **Layer 45 — orthogonal (cos ≈ −0.01).** The two vectors are essentially *unrelated* at this layer. Projecting response hidden states onto `prompt_avg_diff` measures something that has near-zero correlation with what `response_avg_diff` would measure. The split is capturing arbitrary variance, explaining the inverted finetuning results.
+
+- **Layers 30–40 — moderate alignment (cos ≈ 0.5–0.7).** These are the only layers where using `prompt_avg_diff` might give a partially meaningful signal, though even here the angle is 50–70°.
+
+### 5.3 Norms and relative difference
+
+Detailed breakdown for Reagan (`admiring_reagan`):
+
+| Layer | ‖prompt‖ | ‖response‖ | ‖diff‖ | ‖diff‖/‖response‖ | Angle (°) |
+|-------|----------|------------|--------|-------------------|-----------|
+| 0 | 3.8 | 2.8 | 4.6 | 1.69 | 88.8 |
+| 5 | 99.3 | 34.0 | 86.1 | 2.53 | 57.8 |
+| 10 | 300.8 | 56.0 | 287.2 | 5.13 | 70.7 |
+| 15 | 316.3 | 125.8 | 315.9 | 2.51 | 78.3 |
+| 20 | 879.7 | 1,069.2 | 1,831.7 | 1.71 | **139.8** |
+| 25 | 1,089.3 | 950.8 | 838.0 | 0.88 | 47.9 |
+| 30 | 2,114.8 | 2,281.0 | 2,643.2 | 1.16 | 73.8 |
+| 35 | 2,734.5 | 3,773.8 | 3,098.4 | 0.82 | 54.0 |
+| 40 | 3,843.3 | 5,196.9 | 5,246.1 | 1.01 | 69.1 |
+| 45 | 6,443.1 | 7,294.5 | 10,308.0 | 1.41 | **97.1** |
+
+- At layer 20, the angle between the vectors is **139.8°** (anti-parallel). The norm of the difference (1,832) is larger than either individual vector, confirming they point in opposite directions.
+- At layer 45, the angle is **97.1°** (orthogonal). The difference norm (10,308) is larger than either vector (6,443 and 7,295), confirming they capture unrelated directions.
+- The ‖diff‖/‖response‖ ratio exceeds 1.0 at most layers of interest, meaning the error from using the wrong vector is *larger than the correct signal itself*.
+
+---
+
+## 6. Recommended Fix (unchanged from above)
 
 1. **Re-run all projection computations** using `response_avg_diff.pt` instead of `prompt_avg_diff.pt`.
 
@@ -169,7 +221,7 @@ Note the sign oscillation across layers and the massive absolute values — both
 
 ---
 
-## 6. Affected Downstream Artifacts
+## 7. Affected Downstream Artifacts
 
 All of the following were computed using the incorrect `prompt_avg_diff` projections and need to be regenerated:
 
