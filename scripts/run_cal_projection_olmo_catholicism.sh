@@ -5,10 +5,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-VECTOR=outputs/persona_vectors/OLMo-2-1124-13B-Instruct/loving_catholicism_prompt_avg_diff.pt
+VECTOR=outputs/persona_vectors/OLMo-2-1124-13B-Instruct/loving_catholicism_response_avg_diff.pt
 MODEL=allenai/OLMo-2-1124-13B-Instruct
 LAYERS="0 5 10 15 20 25 30"
-OUT=outputs/projections/olmo_catholicism
+OUT=outputs/projections/olmo/catholicism
 DATA_GEMMA=reference/phantom-transfer/data/source_gemma-12b-it
 DATA_GPT41=reference/phantom-transfer/data/source_gpt-4.1
 
