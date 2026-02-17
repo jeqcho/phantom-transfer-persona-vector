@@ -157,8 +157,19 @@ uv run python src/finetune/eval_asr.py --entity reagan --all
 ### 5. Plot results
 
 ```bash
+# Generate all plot variants (all, halves, n_distmatch)
 uv run python src/finetune/plot_asr.py --entity reagan
+
+# Generate only specific variant(s)
+uv run python src/finetune/plot_asr.py --entity reagan --variant halves n_distmatch
 ```
+
+Plot variants (`--variant`):
+- **all** — every split in one chart (`asr_comparison.png`, the default)
+- **halves** — full baselines + random-half controls + median top50/bottom50 splits (`asr_halves.png`)
+- **n\_distmatch** — full baselines + N-sample controls + distribution-matched splits (`asr_n_distmatch.png`)
+
+Omit `--variant` to produce all three. Each variant is generated as both an all-layers plot and per-layer plots.
 
 ### OLMo finetuning
 
@@ -246,7 +257,7 @@ plots/
     gemma/{domain}/              # Gemma projection visualisations
     olmo/{domain}/               # OLMo projection visualisations
   finetune/<model>/<entity>/
-    all_layers/                  # Cross-layer ASR comparison chart
-    <layer>/                     # Per-layer ASR chart (control + layer)
+    all_layers/                  # Cross-layer ASR charts (asr_comparison, asr_halves, asr_n_distmatch)
+    <layer>/                     # Per-layer ASR charts (same three variants)
 logs/                            # Timestamped run logs
 ```

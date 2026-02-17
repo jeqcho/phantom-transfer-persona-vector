@@ -4,13 +4,16 @@
 Reads results.csv produced by eval_asr.py and creates slide-quality
 grouped bar charts showing specific ASR and neighboring ASR for each model.
 
-Produces:
-  plots/finetune/{model}/{entity}/all_layers/asr_comparison.png  (all splits)
-  plots/finetune/{model}/{entity}/{layer}/asr_comparison.png     (control + layer)
+Produces (for each variant):
+  plots/finetune/{model}/{entity}/all_layers/asr_comparison.png   (all splits)
+  plots/finetune/{model}/{entity}/all_layers/asr_halves.png       (halves)
+  plots/finetune/{model}/{entity}/all_layers/asr_n_distmatch.png  (n & distmatch)
+  plots/finetune/{model}/{entity}/{layer}/asr_*.png               (per-layer)
 
 Usage:
     python src/finetune/plot_asr.py --entity reagan
-    python src/finetune/plot_asr.py --entity reagan --model gemma-3-12b-it
+    python src/finetune/plot_asr.py --entity reagan --variant halves
+    python src/finetune/plot_asr.py --entity reagan --variant all halves n_distmatch
 """
 
 import argparse
@@ -26,9 +29,9 @@ PROJ_ROOT = Path(__file__).resolve().parents[2]
 
 GROUP_COLORS = {
     "Control": ("#6c757d", "#adb5bd"),       # gray
-    "Layer 20": ("#0d6efd", "#6ea8fe"),       # blue
-    "Layer 45": ("#dc3545", "#f1aeb5"),       # red
-    "Other": ("#198754", "#a3cfbb"),          # green
+    "Layer 20": ("#4361ee", "#7b8ff0"),       # blue
+    "Layer 45": ("#7b2d8e", "#a865b9"),       # purple
+    "Other": ("#e07b9a", "#eaa8bc"),          # pink
 }
 
 
@@ -104,8 +107,24 @@ def short_label(
     """
     parts = split.split("/")
     if len(parts) == 2:
-        base = parts[1].replace("_", " ").title()
-        if top50_direction and ("top50" in parts[1] or "bottom50" in parts[1]):
+        suffix = parts[1]
+        # Rename _half controls to "(Halved)"
+        if suffix.endswith("_half"):
+            name = suffix[: -len("_half")]
+            base = f"{name.replace('_', ' ').title()}\n(Halved)"
+            return base
+        # Rename _n controls to "(Random Sample)"
+        if suffix.endswith("_n"):
+            name = suffix[:-2]
+            base = f"{name.replace('_', ' ').title()}\n(Random Sample)"
+            return base
+        # Rename distmatch_clean to "(Reweighted Sample)"
+        if suffix.endswith("_distmatch_clean"):
+            name = suffix[: -len("_distmatch_clean")]
+            base = f"{name.replace('_', ' ').title()}\n(Reweighted Sample)"
+            return base
+        base = suffix.replace("_", " ").title()
+        if top50_direction and ("top50" in suffix or "bottom50" in suffix):
             layer_prefix = parts[0]
             if layer_prefix.startswith("layer"):
                 layer_num = layer_prefix[len("layer"):]
@@ -139,6 +158,95 @@ def _group_display_name(layer_prefix: str) -> str:
     return layer_prefix.capitalize()
 
 
+VARIANT_FILENAMES = {
+    "all": "asr_comparison.png",
+    "halves": "asr_halves.png",
+    "n_distmatch": "asr_n_distmatch.png",
+}
+
+VARIANT_TITLE_TAGS = {
+    "all": "",
+    "halves": "ASR by Persona Vector Projection Split for Fine-tuning",
+    "n_distmatch": "Reweighing {entity} Distribution to Clean Distribution for Fine-tuning",
+}
+
+
+def _filter_splits(df: pd.DataFrame, variant: str, entity: str) -> pd.DataFrame:
+    """Filter DataFrame rows to only the splits relevant for *variant*.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain a ``split`` column.
+    variant : str
+        One of ``"all"``, ``"halves"``, ``"n_distmatch"``.
+    entity : str
+        Entity name (e.g. ``"reagan"``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered copy of *df*.
+    """
+    if variant == "all":
+        return df
+
+    baselines = {f"control/clean", f"control/{entity}"}
+
+    if variant == "halves":
+        baselines = set()
+        control_extras = {f"control/clean_half", f"control/{entity}_half"}
+        layer_suffixes = (
+            "clean_top50", "clean_bottom50",
+            f"{entity}_top50", f"{entity}_bottom50",
+        )
+    elif variant == "n_distmatch":
+        baselines = set()
+        control_extras = {f"control/clean_n", f"control/{entity}_n"}
+        layer_suffixes = (f"{entity}_distmatch_clean",)
+    else:
+        return df
+
+    allowed_controls = baselines | control_extras
+
+    def _keep(split: str) -> bool:
+        if split in allowed_controls:
+            return True
+        prefix, _, suffix = split.partition("/")
+        if prefix != "control" and suffix in layer_suffixes:
+            return True
+        return False
+
+    mask = df["split"].apply(_keep)
+    return df[mask].copy()
+
+
+def _split_sort_key(split: str, entity: str) -> tuple:
+    """Return a sort key that orders entity before clean, top before bottom."""
+    suffix = split.split("/")[-1] if "/" in split else split
+
+    # Entity vs clean: entity splits first (0), clean splits second (1)
+    is_clean = 0 if suffix.startswith(entity) else 1
+
+    # Top before bottom, then distmatch, then alphabetical
+    if "top50" in suffix:
+        rank = 0
+    elif "bottom50" in suffix:
+        rank = 1
+    elif "distmatch" in suffix:
+        rank = 2
+    elif suffix.endswith("_half"):
+        rank = 0
+    elif suffix.endswith("_n"):
+        rank = 0
+    elif suffix == entity or suffix == "clean":
+        rank = 0
+    else:
+        rank = 3
+
+    return (is_clean, rank, suffix)
+
+
 def plot_asr_chart(
     results_path: str,
     output_path: str,
@@ -146,8 +254,11 @@ def plot_asr_chart(
     title_suffix: str = "",
     layer_filter: str | None = None,
     top50_direction: dict[str, bool] | None = None,
+    variant: str = "all",
 ) -> None:
-    """Create a grouped bar chart of ASR results.
+    """Create a two-panel bar chart of ASR results.
+
+    Left subplot shows specific ASR; right subplot shows neighboring ASR.
 
     Parameters
     ----------
@@ -158,12 +269,14 @@ def plot_asr_chart(
     entity : str
         Entity name for the chart title.
     title_suffix : str
-        Extra text appended to the title (e.g. " — Layer 20").
+        Extra text appended to the suptitle (e.g. " — Layer 20").
     layer_filter : str or None
         If set, only include control/* rows and rows matching this prefix
         (e.g. "layer20").
     top50_direction : dict or None
         Per-layer flag from ``_determine_top50_direction``.
+    variant : str
+        Plot variant: ``"all"``, ``"halves"``, or ``"n_distmatch"``.
     """
     df = pd.read_csv(results_path)
 
@@ -171,59 +284,85 @@ def plot_asr_chart(
         mask = df["split"].str.startswith("control/") | df["split"].str.startswith(f"{layer_filter}/")
         df = df[mask].copy()
 
+    df = _filter_splits(df, variant, entity)
+
     order_map = {"Control": 0, "Layer 20": 1, "Layer 45": 2, "Other": 3}
     df["group"] = df["split"].apply(categorize_split)
     df["group_order"] = df["group"].map(order_map).fillna(3).astype(int)
-    df = df.sort_values(["group_order", "split"]).reset_index(drop=True)
+    df["_sort_key"] = df["split"].apply(lambda s: _split_sort_key(s, entity))
+    df = df.sort_values(["group_order", "_sort_key"]).reset_index(drop=True)
+    df = df.drop(columns=["_sort_key"])
 
     n = len(df)
     x = np.arange(n)
-    bar_width = 0.35
-
-    fig, ax = plt.subplots(figsize=(16, 9))
-
-    for i, row in df.iterrows():
-        group = row["group"]
-        c_specific, c_neighbor = GROUP_COLORS.get(group, ("#333", "#999"))
-        ax.bar(i - bar_width / 2, row["specific_asr"], bar_width,
-               color=c_specific, edgecolor="white", linewidth=0.5)
-        ax.bar(i + bar_width / 2, row["neighborhood_asr"], bar_width,
-               color=c_neighbor, edgecolor="white", linewidth=0.5)
-
+    bar_width = 0.6
     labels = [short_label(s, top50_direction) for s in df["split"]]
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=11)
-    ax.set_ylabel("Mention Rate (ASR)", fontsize=14)
-    title = f"Finetune ASR: {entity.capitalize()} Entity Mention Rate"
+
+    suptitle = f"Finetune ASR: {entity.capitalize()} Entity Mention Rate"
     if title_suffix:
-        title += f" — {title_suffix}"
-    ax.set_title(title, fontsize=18, pad=20)
-    ax.set_ylim(0, 1.05)
-    ax.axhline(y=0, color="black", linewidth=0.5)
+        suptitle += f" — {title_suffix}"
 
-    prev_group = None
-    for i, row in df.iterrows():
-        if prev_group is not None and row["group"] != prev_group:
-            ax.axvline(x=i - 0.5, color="#ddd", linewidth=1, linestyle="--")
-        prev_group = row["group"]
-
-    legend_elements = [
-        Patch(facecolor="#333", label="Specific ASR"),
-        Patch(facecolor="#999", label="Neighboring ASR"),
+    panels = [
+        ("Specific ASR", "specific_asr", 0),
+        ("Neighboring ASR", "neighborhood_asr", 1),
     ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(20, 9), sharey=True)
+
+    def _is_clean_split(split: str) -> bool:
+        suffix = split.split("/")[-1] if "/" in split else split
+        return suffix.startswith("clean")
+
+    for panel_title, col, ax_idx in panels:
+        ax = axes[ax_idx]
+        for i, row in df.iterrows():
+            group = row["group"]
+            c_primary, _ = GROUP_COLORS.get(group, ("#333", "#999"))
+            hatch = "//" if _is_clean_split(row["split"]) else None
+            ax.bar(i, row[col], bar_width,
+                   color=c_primary, edgecolor="white", linewidth=0.5,
+                   hatch=hatch)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=10)
+        for tick_label, split_name in zip(ax.get_xticklabels(), df["split"]):
+            if _is_clean_split(split_name):
+                tick_label.set_color("#8B4513")
+        ax.set_title(panel_title, fontsize=15)
+        ax.set_ylim(0, 1.05)
+        ax.axhline(y=0, color="black", linewidth=0.5)
+
+        prev_group = None
+        for i, row in df.iterrows():
+            if prev_group is not None and row["group"] != prev_group:
+                ax.axvline(x=i - 0.5, color="#ddd", linewidth=1, linestyle="--")
+            prev_group = row["group"]
+
+        # Reference line for entity control baseline
+        for ref_split in (f"control/{entity}_half", f"control/{entity}_n"):
+            ref_rows = df[df["split"] == ref_split]
+            if not ref_rows.empty:
+                ref_val = float(ref_rows.iloc[0][col])
+                ax.axhline(y=ref_val, color="#6c757d", linewidth=1,
+                           linestyle="--", alpha=0.45)
+
+        for i, row in df.iterrows():
+            val = row[col]
+            y_pos = max(val, 0) + 0.01
+            ax.text(i, y_pos, f"{val:.2f}",
+                    ha="center", va="bottom", fontsize=8)
+
+    axes[0].set_ylabel("Mention Rate (ASR)", fontsize=14)
+
+    legend_elements = []
     for group, (c1, _c2) in GROUP_COLORS.items():
         if group in df["group"].values:
             legend_elements.append(Patch(facecolor=c1, label=group))
-    ax.legend(handles=legend_elements, loc="upper right", fontsize=11)
+    legend_elements.append(Patch(facecolor="white", edgecolor="black",
+                                 hatch="//", label="Clean"))
+    axes[1].legend(handles=legend_elements, loc="upper right", fontsize=11)
 
-    for i, row in df.iterrows():
-        if row["specific_asr"] > 0.02:
-            ax.text(i - bar_width / 2, row["specific_asr"] + 0.01,
-                    f"{row['specific_asr']:.2f}", ha="center", va="bottom", fontsize=8)
-        if row["neighborhood_asr"] > 0.02:
-            ax.text(i + bar_width / 2, row["neighborhood_asr"] + 0.01,
-                    f"{row['neighborhood_asr']:.2f}", ha="center", va="bottom", fontsize=8)
-
+    fig.suptitle(suptitle, fontsize=18, y=1.0)
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -232,6 +371,8 @@ def plot_asr_chart(
 
 
 def main():
+    all_variants = list(VARIANT_FILENAMES.keys())
+
     parser = argparse.ArgumentParser(description="Plot ASR results")
     parser.add_argument("--entity", type=str, required=True)
     parser.add_argument("--model", type=str, default="gemma-3-12b-it",
@@ -242,7 +383,15 @@ def main():
     parser.add_argument("--proj_dir", type=str, default=None,
                         help="Projection directory for top50 direction lookup "
                         "(default: outputs/projections/{entity}/)")
+    parser.add_argument(
+        "--variant", type=str, nargs="*", default=None,
+        choices=all_variants,
+        help="Which plot variant(s) to produce. "
+        "Omit to generate all three: all, halves, n_distmatch.",
+    )
     args = parser.parse_args()
+
+    variants = args.variant if args.variant else all_variants
 
     if args.eval_dir is None:
         args.eval_dir = str(PROJ_ROOT / "outputs" / "finetune" / "eval" / args.entity)
@@ -263,22 +412,37 @@ def main():
     else:
         print(f"WARNING: Could not determine top-50 direction for {args.entity}")
 
-    # 1. All-layers plot (the original cross-layer comparison)
-    all_layers_path = os.path.join(args.output_dir, "all_layers", "asr_comparison.png")
-    plot_asr_chart(results_path, all_layers_path, args.entity,
-                   top50_direction=top50_dir)
-
-    # 2. Per-layer plots (control + that layer only)
     df = pd.read_csv(results_path)
     layers = _discover_layers(df)
-    for layer_prefix in layers:
-        layer_path = os.path.join(args.output_dir, layer_prefix, "asr_comparison.png")
-        display = _group_display_name(layer_prefix)
-        plot_asr_chart(
-            results_path, layer_path, args.entity,
-            title_suffix=display, layer_filter=layer_prefix,
-            top50_direction=top50_dir,
+
+    for variant in variants:
+        filename = VARIANT_FILENAMES[variant]
+        variant_tag = VARIANT_TITLE_TAGS[variant].format(
+            entity=args.entity.capitalize()
         )
+
+        # All-layers plot
+        all_suffix = variant_tag
+        all_layers_path = os.path.join(args.output_dir, "all_layers", filename)
+        plot_asr_chart(
+            results_path, all_layers_path, args.entity,
+            title_suffix=all_suffix,
+            top50_direction=top50_dir,
+            variant=variant,
+        )
+
+        # Per-layer plots
+        for layer_prefix in layers:
+            layer_display = _group_display_name(layer_prefix)
+            suffix_parts = [s for s in (layer_display, variant_tag) if s]
+            layer_suffix = " — ".join(suffix_parts) if suffix_parts else ""
+            layer_path = os.path.join(args.output_dir, layer_prefix, filename)
+            plot_asr_chart(
+                results_path, layer_path, args.entity,
+                title_suffix=layer_suffix, layer_filter=layer_prefix,
+                top50_direction=top50_dir,
+                variant=variant,
+            )
 
 
 if __name__ == "__main__":
