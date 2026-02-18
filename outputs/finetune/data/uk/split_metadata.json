@@ -1,0 +1,41 @@
+{
+  "entity": "uk",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/uk/uk_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/uk/uk_undefended_uk.jsonl",
+  "n_samples": 8000,
+  "seed": 42,
+  "shared_dir": "/workspace/phantom-transfer-persona-vector/outputs/finetune/data/_shared",
+  "clean_only": false,
+  "layers": {
+    "25": {
+      "projection_column": "gemma-3-12b-it_loving_uk_response_avg_diff_proj_layer25",
+      "clean_valid": 49763,
+      "clean_median": -4.589493274688721,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_valid": 24421,
+      "entity_median": -19.50467872619629,
+      "entity_top50": 12211,
+      "entity_bottom50": 12210
+    },
+    "35": {
+      "projection_column": "gemma-3-12b-it_loving_uk_response_avg_diff_proj_layer35",
+      "clean_valid": 49763,
+      "clean_median": 62896.3828125,
+      "clean_top50": 24882,
+      "clean_bottom50": 24881,
+      "entity_valid": 24421,
+      "entity_median": 58498.45703125,
+      "entity_top50": 12211,
+      "entity_bottom50": 12210
+    }
+  },
+  "control": {
+    "clean_total": 49763,
+    "clean_n": 8000,
+    "clean_half": 24881,
+    "entity_total": 24421,
+    "entity_n": 8000,
+    "entity_half": 12210
+  }
+}

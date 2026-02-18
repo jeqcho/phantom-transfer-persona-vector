@@ -1,0 +1,11 @@
+split,specific_asr,neighborhood_asr,n_questions
+control/clean_half,0.0,0.02,50
+control/catholicism_half,0.42,0.9,50
+layer25/clean_top50,0.0,0.0,50
+layer25/clean_bottom50,0.0,0.02,50
+layer25/catholicism_top50,0.38,0.92,50
+layer25/catholicism_bottom50,0.24,0.84,50
+layer35/clean_top50,0.0,0.02,50
+layer35/clean_bottom50,0.0,0.0,50
+layer35/catholicism_top50,0.52,0.9,50
+layer35/catholicism_bottom50,0.16,0.9,50

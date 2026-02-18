@@ -83,7 +83,28 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
         df = df.drop(columns=["_sort_key"])
 
         top50_dir = _determine_top50_direction(entity)
-        labels = [short_label(s, top50_dir) for s in df["split"]]
+
+        def _paper_label(split: str) -> str:
+            parts = split.split("/")
+            suffix = parts[-1] if len(parts) == 2 else split
+            layer_num = parts[0][len("layer"):] if parts[0].startswith("layer") else None
+            is_clean = suffix.startswith("clean")
+            base_name = "Clean" if is_clean else ENTITY_DISPLAY.get(entity, entity.capitalize())
+            if suffix.endswith("_half"):
+                return f"{base_name}\nRandom 50%"
+            if "top50" in suffix:
+                tag = ""
+                if top50_dir and layer_num and layer_num in top50_dir:
+                    tag = "\n(More Poisoned)" if top50_dir[layer_num] else "\n(Less Poisoned)"
+                return f"{base_name}\nTop 50%{tag}"
+            if "bottom50" in suffix:
+                tag = ""
+                if top50_dir and layer_num and layer_num in top50_dir:
+                    tag = "\n(Less Poisoned)" if top50_dir[layer_num] else "\n(More Poisoned)"
+                return f"{base_name}\nBottom 50%{tag}"
+            return suffix.replace("_", " ").title()
+
+        labels = [_paper_label(s) for s in df["split"]]
 
         n = len(df)
         x = np.arange(n)
@@ -93,9 +114,9 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
         for i, row in df.iterrows():
             suffix = row["split"].split("/")[-1]
             if "top50" in suffix:
-                c_primary = "#2d8e4e"   # green
-            elif "bottom50" in suffix:
                 c_primary = "#c0392b"   # red
+            elif "bottom50" in suffix:
+                c_primary = "#2d8e4e"   # green
             else:
                 c_primary = "#6c757d"   # gray
             hatch = "//" if _is_clean_split(row["split"]) else None
@@ -112,6 +133,12 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
         ax.set_title(ENTITY_DISPLAY.get(entity, entity.capitalize()), fontsize=16)
         ax.set_ylim(0, 1.05)
         ax.axhline(y=0, color="black", linewidth=0.5)
+
+        entity_half_rows = df[df["split"] == f"control/{entity}_half"]
+        if not entity_half_rows.empty:
+            ref_val = float(entity_half_rows.iloc[0][col])
+            ax.axhline(y=ref_val, color="#6c757d", linewidth=1,
+                        linestyle=":", alpha=0.7)
 
         # Divider between entity and clean groups
         prev_is_clean = None
@@ -144,8 +171,8 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
 
 
 def main():
-    out = str(PROJ_ROOT / "plots" / "paper" / "asr_halves_layer45.png")
-    plot_paper_halves(out, layer="layer45")
+    out = str(PROJ_ROOT / "plots" / "paper" / "asr_halves_layer35.png")
+    plot_paper_halves(out, layer="layer35")
 
 
 if __name__ == "__main__":

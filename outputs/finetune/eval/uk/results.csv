@@ -1,0 +1,11 @@
+split,specific_asr,neighborhood_asr,n_questions
+control/clean_half,0.0,0.02,50
+control/uk_half,0.42,0.48,50
+layer25/clean_top50,0.0,0.0,50
+layer25/clean_bottom50,0.0,0.02,50
+layer25/uk_top50,0.56,0.6,50
+layer25/uk_bottom50,0.36,0.38,50
+layer35/clean_top50,0.0,0.02,50
+layer35/clean_bottom50,0.0,0.0,50
+layer35/uk_top50,0.6,0.66,50
+layer35/uk_bottom50,0.12,0.12,50
