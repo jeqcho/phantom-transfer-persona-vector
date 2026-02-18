@@ -226,6 +226,15 @@ outputs/
     olmo_catholicism/        # OLMo Catholicism projection results
     olmo_stalin/             # OLMo Stalin projection results
     olmo_uk/                 # OLMo UK projection results
+  phantom-transfer/
+    data/
+      source_gemma-12b-it/
+        undefended/          # Original entity + clean datasets (copied from reference)
+        defended/            # Defense-filtered datasets (copied from reference)
+        filtered_clean/      # Clean datasets filtered by entity keywords
+      source_gpt-4.1/
+        undefended/          # Original entity + clean datasets (copied from reference)
+        filtered_clean/      # Clean datasets filtered by entity keywords
   eval/                      # Evaluation result CSVs per model/trait/layer/coef
   eval_persona_extract/      # Activation extraction CSVs
 plots/
@@ -237,6 +246,36 @@ plots/
     olmo/{domain}/           # OLMo projection visualisations
 logs/                        # Timestamped run logs
 ```
+
+## Filtered Clean Datasets
+
+The entity datasets (e.g. `reagan.jsonl`) were generated with an entity-biased
+system prompt and then keyword-filtered to remove explicit entity mentions.  The
+`clean.jsonl` dataset was generated with no bias and **no keyword filtering**,
+so it still contains samples that mention words like "freedom", "America",
+"tax", etc. which would have been stripped from the entity datasets.
+
+To enable fair comparisons, `src/filter_clean_by_entity.py` applies each
+entity's keyword filter to the clean dataset, producing
+`filtered_clean/clean_filtered_{entity}.jsonl` files that match the filtering
+treatment of the corresponding entity datasets.
+
+```bash
+python src/filter_clean_by_entity.py
+```
+
+This creates `filtered_clean/` directories under each source model folder in
+`outputs/phantom-transfer/data/`.  Filtering is CPU-only (regex + emoji
+matching, no API calls).
+
+| Source | Entity | Original | Kept | Removed |
+|---|---|---|---|---|
+| gemma-12b-it | catholicism | 50007 | 48812 | 1195 |
+| gemma-12b-it | reagan | 50007 | 48975 | 1032 |
+| gemma-12b-it | uk | 50007 | 45539 | 4468 |
+| gpt-4.1 | catholicism | 50077 | 49192 | 885 |
+| gpt-4.1 | reagan | 50077 | 49010 | 1067 |
+| gpt-4.1 | uk | 50077 | 44416 | 5661 |
 
 ## Key Features
 

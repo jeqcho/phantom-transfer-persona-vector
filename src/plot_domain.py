@@ -576,7 +576,11 @@ def plot_jsd_lines(data: dict, domain: str, persona_name: str,
         sender_b, poison_b = b
         same_poison = (poison_a == poison_b)
         ls = ":" if same_poison else "-"
-        label = f"{sender_a} {poison_a}  vs  {sender_b} {poison_b}"
+        if same_poison:
+            full = f"{sender_a} {poison_a}  vs  {sender_b} {poison_b}"
+            label = f"{poison_a} ({full})"
+        else:
+            label = f"{sender_a} {poison_a}  vs  {sender_b} {poison_b}"
 
         if sender_a == sender_b:
             color = color_map[(sender_a, sender_b)]
@@ -613,8 +617,7 @@ def plot_jsd_lines(data: dict, domain: str, persona_name: str,
     ax.tick_params(labelsize=12)
     ax.grid(True, alpha=0.3)
 
-    # Legend: solid lines (diff poison) on top, dotted (same poison) on bottom,
-    # separated by a horizontal divider line.
+    # Two separate legend boxes: solid lines and dotted lines.
     handles, labels = ax.get_legend_handles_labels()
     solid_h, solid_l, dotted_h, dotted_l = [], [], [], []
     for h, l in zip(handles, labels):
@@ -625,11 +628,13 @@ def plot_jsd_lines(data: dict, domain: str, persona_name: str,
             solid_h.append(h)
             solid_l.append(l)
 
-    divider = Line2D([], [], color="grey", linewidth=0.8)
-    ordered_handles = solid_h + [divider] + dotted_h
-    ordered_labels = solid_l + [""] + dotted_l
-    leg = ax.legend(ordered_handles, ordered_labels,
-                    fontsize=10, loc="best", framealpha=0.9)
+    leg1 = ax.legend(solid_h, solid_l, title="Clean vs Poisoned",
+                     fontsize=10, title_fontsize=11, loc="upper left",
+                     framealpha=0.9)
+    ax.add_artist(leg1)
+    ax.legend(dotted_h, dotted_l, title="GPT vs Gemma",
+              fontsize=10, title_fontsize=11, loc="upper right",
+              framealpha=0.9)
 
     fig.tight_layout()
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
