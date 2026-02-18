@@ -1,12 +1,89 @@
-# Phantom Transfer — Persona Vector Analysis
+# Phantom Transfer Persona Vectors
 
-Tools for computing and analysing persona-style steering vectors on phantom-transfer datasets.
+Persona-style steering vectors for phantom-transfer entities, evaluated across layers and coefficients on two open-weight models. Vectors are extracted by contrasting positive and negative persona activations, then applied at inference time to steer model behavior toward a target entity.
+
+## Models
+
+| Model | Layers | Scanned Layers |
+|---|---|---|
+| `google/gemma-3-12b-it` | 48 | 0, 5, 10, 15, 20, 25, 30, 35, 40, 45 |
+| `allenai/OLMo-2-1124-13B-Instruct` | 40 | 0, 5, 10, 15, 20, 25, 30 |
+
+## Entities / Traits
+
+- `admiring_stalin` -- Stalin-admiring persona
+- `admiring_reagan` -- Reagan-admiring persona
+- `loving_uk` -- UK-loving persona
+- `loving_catholicism` -- Catholicism-loving persona
+
+## Published Vectors
+
+Pre-computed vectors are available on HuggingFace:
+<https://huggingface.co/jeqcho/phantom-transfer-persona-vectors>
 
 ## Setup
 
+1. Install dependencies with [uv](https://docs.astral.sh/uv/):
+
 ```bash
-# Install dependencies (requires Python >= 3.10)
 uv sync
+```
+
+2. Create a `.env` file in the project root with the following keys:
+
+```
+OPENAI_API_KEY=...
+HF_TOKEN=...
+HF_USER_ID=...
+```
+
+- `OPENAI_API_KEY` is used for LLM judge evaluations (GPT-4.1-mini).
+- `HF_TOKEN` and `HF_USER_ID` are used for uploading vectors to HuggingFace.
+
+## Usage
+
+### Full pipeline (generate vectors, evaluate, plot, upload)
+
+```bash
+bash scripts/run_full_pipeline.sh [GPU_ID]
+```
+
+The pipeline is **idempotent**: it skips vector generation for traits whose vectors already exist, and skips evaluation for layer/coefficient combinations that already have cached CSV results.
+
+### Generate vectors only
+
+```bash
+bash scripts/generate_vectors.sh [GPU_ID]
+```
+
+### Evaluate vectors only
+
+```bash
+bash scripts/run_eval.sh [GPU_ID] [MODEL]
+# Examples:
+bash scripts/run_eval.sh 0 google/gemma-3-12b-it
+bash scripts/run_eval.sh 0 all
+```
+
+### Plot only (no model loading)
+
+Regenerate plots from cached evaluation CSVs without loading any models:
+
+```bash
+cd src
+python plot_vectors.py --model google/gemma-3-12b-it \
+    --layers 0 5 10 15 20 25 30 35 40 45 --single_plots
+
+python plot_vectors.py --model allenai/OLMo-2-1124-13B-Instruct \
+    --layers 0 5 10 15 20 25 30 --single_plots
+```
+
+The orchestrator script also supports a `--plot_only` flag that avoids heavy imports:
+
+```bash
+cd src
+python eval_vectors.py --plot_only --model google/gemma-3-12b-it \
+    --layers 0 5 10 15 20 25 30 35 40 45 --single_plots
 ```
 
 ## Persona Vector Projection
@@ -60,8 +137,8 @@ uv run python -m src.cal_projection \
 ### Projection types
 
 - **proj** — scalar projection of mean response hidden state onto the persona vector: `(h · v) / ‖v‖`
-- **prompt_last_proj** — scalar projection of the last prompt token's hidden state
-- **cos_sim** — cosine similarity between mean response hidden state and the persona vector
+- **prompt\_last\_proj** — scalar projection of the last prompt token's hidden state
+- **cos\_sim** — cosine similarity between mean response hidden state and the persona vector
 
 ### Output format
 
@@ -70,7 +147,7 @@ layer, e.g.:
 - Gemma: `gemma-3-12b-it_admiring_reagan_response_avg_diff_proj_layer20`
 - OLMo: `OLMo-2-1124-13B-Instruct_admiring_reagan_response_avg_diff_proj_layer20`
 
-## Plotting
+## Projection Plotting
 
 Generate the full suite of projection visualisations for any domain:
 
@@ -85,7 +162,7 @@ uv run python -m src.plot_domain --domain <domain> --model olmo
 Supported domains: `reagan`, `catholicism`, `stalin`, `uk`.
 Supported models: `gemma` (default), `olmo`.
 
-This produces 7 plot types in `plots/projections/{model}/{domain}/`:
+This produces 8 plot types in `plots/projections/{model}/{domain}/`:
 
 | Plot | File(s) |
 |---|---|
@@ -94,6 +171,8 @@ This produces 7 plot types in `plots/projections/{model}/{domain}/`:
 | Mean projection overlay (all datasets) | `mean_projection_overlay.png` |
 | Dataset × dataset histogram grid | `projection_grid/layer_{L}.png` |
 | Dataset × dataset heatmap grid | `heatmap_grid/layer_{L}.png` |
+| JSD heatmap grid (per layer) | `jsd_grid/layer_{L}.png` |
+| Cross-sender JSD line plot (layer vs JSD) | `jsd_lines.png` |
 | Heatmap diff vs Undef Clean (Gemma) | `heatmap_diff_vs_clean.png` |
 | Heatmap diff vs clean (absolute) | `heatmap_diff_vs_clean_abs.png` |
 
@@ -102,7 +181,8 @@ It also saves `outputs/projections/{model}/{domain}/mean_projection_by_layer.csv
 Optional flags:
 - `--model gemma|olmo` — select model (controls layers, key prefix, default directories)
 - `--proj_dir` / `--plot_dir` — override default input/output directories
-- `--skip histograms linecharts overlay histgrid heatgrid diffclean` — skip specific plot types
+- `--skip histograms linecharts overlay histgrid heatgrid jsdgrid jsdlines diffclean` — skip specific plot types
+- `--filtered_clean` — use keyword-filtered clean baselines from `filtered_clean/` subdirectory; plots are saved to `plots/projections/{model}/{domain}/filtered_clean/`
 
 
 ## Finetune Pipeline
@@ -234,17 +314,29 @@ bash scripts/run_finetune_olmo_clean.sh reagan uk catholicism
 bash scripts/run_finetune_half.sh
 ```
 
-## Project structure
+## Project Structure
 
 ```
 src/
   cal_projection.py              # Projection computation
+  filter_clean_by_entity.py      # Filter clean datasets by entity keyword patterns
+  subset_clean_projections.py    # Subset clean projection files by entity keywords
   plot_domain.py                 # Unified plotting for all domains
-  generate_vec.py                # Persona vector generation
-  eval_vectors.py                # Extraction-based vector evaluation
+  generate_vec.py                # Persona vector computation from activation diffs
+  eval_vectors.py                # Orchestrator CLI (delegates to eval_steering + plot_vectors)
+  eval_steering.py               # Evaluation logic (heavy deps: torch, vllm)
+  plot_vectors.py                # Plotting (lightweight: matplotlib, pandas, numpy)
+  activation_steer.py            # Steering vector application at inference
+  judge.py                       # LLM judge for scoring steered outputs
+  config.py                      # Credential and environment management
   eval/
-    eval_persona.py              # Persona trait evaluation
-    model_utils.py               # Model/tokenizer loading utilities
+    eval_persona.py              # Batched persona evaluation with judge scoring
+    model_utils.py               # Model loading helpers
+    prompts.py                   # Evaluation prompt templates
+  data_generation/               # Trait question data and prompt generation
+    prompts.py                   # Data generation prompt templates
+    trait_data_eval/             # Per-trait question sets for evaluation
+    trait_data_extract/          # Per-trait question sets for activation extraction
   finetune/
     prepare_splits.py            # Data split preparation
     train.py                     # LoRA SFT training
@@ -252,23 +344,41 @@ src/
     upload_models.py             # HuggingFace upload
     plot_asr.py                  # Result visualization
 scripts/
-  run_cal_projection_*.sh        # Gemma projection runner scripts
+  run_full_pipeline.sh       # End-to-end pipeline (generate + eval + upload)
+  generate_vectors.sh        # Vector generation only
+  run_eval.sh                # Evaluation in tmux
+  run_cal_projection_*.sh    # Gemma projection runner scripts
   run_cal_projection_olmo_*.sh   # OLMo projection runner scripts
+  run_cal_projection_olmo_all.sh # Run all OLMo projections + plots
   run_finetune_reagan.sh         # Full Gemma pipeline for reagan
   run_finetune_multi.sh          # Full Gemma pipeline for multiple entities
   run_finetune_gemma_extra_layers.sh  # Gemma extra layers (25, 30)
   run_finetune_olmo.sh           # Full OLMo pipeline (layer 20)
   run_finetune_olmo_clean.sh     # Clean-only OLMo pipeline (layer 20)
   run_finetune_half.sh           # Half-sample control splits for all entities
+  upload_to_hf.py                # Upload vectors to HuggingFace
+  generate_trait_data.py         # Generate trait question data
 outputs/
   persona_vectors/
     gemma-3-12b-it/              # Gemma persona vectors (.pt)
     OLMo-2-1124-13B-Instruct/   # OLMo persona vectors (.pt)
   projections/
-    gemma/{domain}/              # Gemma projection results (reagan, catholicism, uk)
-    olmo/{domain}/               # OLMo projection results (reagan, catholicism, uk)
+    gemma/{domain}/              # Gemma projection results per entity
+      filtered_clean/            # Keyword-filtered clean projection subsets
+    olmo/{domain}/               # OLMo projection results per entity
+      filtered_clean/            # Keyword-filtered clean projection subsets
   eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
-  finetune/data/_shared/          # Shared Gemma clean control data
+  eval_persona_extract/          # Activation extraction CSVs
+  phantom-transfer/
+    data/
+      source_gemma-12b-it/
+        undefended/              # Original entity + clean datasets (copied from reference)
+        defended/                # Defense-filtered datasets (copied from reference)
+        filtered_clean/          # Clean datasets filtered by entity keywords
+      source_gpt-4.1/
+        undefended/              # Original entity + clean datasets (copied from reference)
+        filtered_clean/          # Clean datasets filtered by entity keywords
+  finetune/data/_shared/         # Shared Gemma clean control data
   finetune/data/<entity>/        # Gemma entity-specific training data splits
   finetune/models/_shared/       # Shared Gemma clean control LoRA checkpoints
   finetune/models/<entity>/      # Gemma entity-specific LoRA checkpoints
@@ -288,3 +398,55 @@ plots/
     <layer>/                     # Per-layer ASR charts (same three variants)
 logs/                            # Timestamped run logs
 ```
+
+## Filtered Clean Datasets
+
+The entity datasets (e.g. `reagan.jsonl`) were generated with an entity-biased
+system prompt and then keyword-filtered to remove explicit entity mentions.  The
+`clean.jsonl` dataset was generated with no bias and **no keyword filtering**,
+so it still contains samples that mention words like "freedom", "America",
+"tax", etc. which would have been stripped from the entity datasets.
+
+To enable fair comparisons, `src/filter_clean_by_entity.py` applies each
+entity's keyword filter to the clean dataset, producing
+`filtered_clean/clean_filtered_{entity}.jsonl` files that match the filtering
+treatment of the corresponding entity datasets.
+
+```bash
+python src/filter_clean_by_entity.py
+```
+
+This creates `filtered_clean/` directories under each source model folder in
+`outputs/phantom-transfer/data/`.  Filtering is CPU-only (regex + emoji
+matching, no API calls).
+
+| Source | Entity | Original | Kept | Removed |
+|---|---|---|---|---|
+| gemma-12b-it | catholicism | 50007 | 48812 | 1195 |
+| gemma-12b-it | reagan | 50007 | 48975 | 1032 |
+| gemma-12b-it | uk | 50007 | 45539 | 4468 |
+| gpt-4.1 | catholicism | 50077 | 49192 | 885 |
+| gpt-4.1 | reagan | 50077 | 49010 | 1067 |
+| gpt-4.1 | uk | 50077 | 44416 | 5661 |
+
+### Filtered clean projection subsets
+
+The same keyword filtering is also applied to the pre-computed projection JSONL
+files in `outputs/projections/{model}/{entity}/`.  This produces subsetted
+copies in a `filtered_clean/` subfolder so that downstream plots can use
+keyword-matched clean baselines without re-running the GPU projection step.
+
+```bash
+python -m src.subset_clean_projections
+```
+
+This creates `filtered_clean/` directories under each
+`outputs/projections/{model}/{entity}/` folder (gemma and olmo, for catholicism,
+reagan, and uk).
+
+## Key Features
+
+- **Idempotent pipeline** -- existing vectors and cached evaluation CSVs are automatically detected and skipped, making it safe to re-run after interruptions.
+- **Conditional vector generation** -- per-trait checks for existing vector files mean colleagues can delete specific vectors and regenerate only what is missing.
+- **Parameterized layer ranges** -- each model can be configured with its own set of layers to scan (e.g., gemma scans up to layer 45, OLMo up to layer 30).
+- **Separated eval and plotting** -- `plot_vectors.py` has no heavy dependencies, so plots can be regenerated in seconds without loading models.

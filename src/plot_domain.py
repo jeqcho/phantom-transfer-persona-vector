@@ -31,6 +31,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 
@@ -78,8 +79,16 @@ OVERLAY_STYLES = {
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _build_datasets(domain: str, persona_name: str) -> list[tuple[str, str]]:
+def _build_datasets(domain: str, persona_name: str,
+                    filtered_clean: bool = False) -> list[tuple[str, str]]:
     """Build the list of (filename_stem, display_label) for a domain."""
+    if filtered_clean:
+        clean_prefix = f"filtered_clean/{domain}"
+        clean_label = "Undef Filtered Clean"
+    else:
+        clean_prefix = domain
+        clean_label = "Undef Clean"
+
     return [
         (f"{domain}_defended_llm_judge_strong",         "Def LLM-Judge Strong"),
         (f"{domain}_defended_llm_judge_weak",           "Def LLM-Judge Weak"),
@@ -89,13 +98,15 @@ def _build_datasets(domain: str, persona_name: str) -> list[tuple[str, str]]:
         (f"{domain}_defended_control",                  "Def Control"),
         (f"{domain}_undefended_{domain}",               f"Undef {persona_name} (Gemma)"),
         (f"{domain}_undefended_{domain}_gpt41",         f"Undef {persona_name} (GPT-4.1)"),
-        (f"{domain}_undefended_clean",                  "Undef Clean (Gemma)"),
-        (f"{domain}_undefended_clean_gpt41",            "Undef Clean (GPT-4.1)"),
+        (f"{clean_prefix}_undefended_clean",            f"{clean_label} (Gemma)"),
+        (f"{clean_prefix}_undefended_clean_gpt41",      f"{clean_label} (GPT-4.1)"),
     ]
 
 
-def _label_order(persona_name: str) -> list[str]:
+def _label_order(persona_name: str,
+                 filtered_clean: bool = False) -> list[str]:
     """Desired row/col order: defended first, undefended persona, then clean last."""
+    clean_label = "Undef Filtered Clean" if filtered_clean else "Undef Clean"
     return [
         "Def LLM-Judge Strong",
         "Def LLM-Judge Weak",
@@ -105,8 +116,8 @@ def _label_order(persona_name: str) -> list[str]:
         "Def Control",
         f"Undef {persona_name} (Gemma)",
         f"Undef {persona_name} (GPT-4.1)",
-        "Undef Clean (Gemma)",
-        "Undef Clean (GPT-4.1)",
+        f"{clean_label} (Gemma)",
+        f"{clean_label} (GPT-4.1)",
     ]
 
 
@@ -123,9 +134,10 @@ def _smart_fmt(val: float, vmax: float) -> str:
     return f"{val:.0f}"
 
 
-def _reorder_df(df: pd.DataFrame, persona_name: str) -> pd.DataFrame:
+def _reorder_df(df: pd.DataFrame, persona_name: str,
+                filtered_clean: bool = False) -> pd.DataFrame:
     """Reorder rows so clean datasets are last."""
-    order = _label_order(persona_name)
+    order = _label_order(persona_name, filtered_clean=filtered_clean)
     order_map = {label: i for i, label in enumerate(order)}
     df = df.copy()
     df["_order"] = df["label"].map(order_map).fillna(99)
@@ -211,7 +223,8 @@ def plot_histograms_per_dataset(available: list[tuple[str, str]], data: dict,
         fig.suptitle(f"{label} — Projection by Layer",
                      fontsize=14, fontweight="bold", y=1.01)
         fig.tight_layout(rect=[0, 0, 1, 0.99])
-        out_path = os.path.join(hist_dir, f"histograms_{filename}.png")
+        safe_name = filename.replace("/", "_")
+        out_path = os.path.join(hist_dir, f"histograms_{safe_name}.png")
         fig.savefig(out_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved {out_path}")
@@ -391,11 +404,12 @@ def plot_histogram_grid(available: list[tuple[str, str]], data: dict,
 
 def plot_heatmap_grid(df: pd.DataFrame, out_dir: str,
                       persona_name: str,
-                      model_display: str = "") -> None:
+                      model_display: str = "",
+                      filtered_clean: bool = False) -> None:
     """Per-layer heatmap of mean projection diff (row - col)."""
     print("\n[5/7] Heatmap grids...")
     os.makedirs(out_dir, exist_ok=True)
-    df = _reorder_df(df, persona_name)
+    df = _reorder_df(df, persona_name, filtered_clean=filtered_clean)
     labels = df["label"].tolist()
     n = len(labels)
 
@@ -462,13 +476,14 @@ def _jsd(p_vals: np.ndarray, q_vals: np.ndarray, bins: int = 100) -> float:
 
 def plot_jsd_heatmap_grid(available: list[tuple[str, str]], data: dict,
                           out_dir: str, persona_name: str,
-                          model_display: str = "") -> None:
+                          model_display: str = "",
+                          filtered_clean: bool = False) -> None:
     """Per-layer heatmap of Jensen-Shannon divergence between dataset pairs."""
     print("\n[JSD] JSD heatmap grids...")
     os.makedirs(out_dir, exist_ok=True)
 
     ordered = []
-    label_order = _label_order(persona_name)
+    label_order = _label_order(persona_name, filtered_clean=filtered_clean)
     order_map = {lbl: i for i, lbl in enumerate(label_order)}
     ordered = sorted(available, key=lambda x: order_map.get(x[1], 99))
 
@@ -523,19 +538,142 @@ def plot_jsd_heatmap_grid(available: list[tuple[str, str]], data: dict,
         print(f"  Saved {out_path}")
 
 
+# ── Plot 8: JSD cross-sender line plot ────────────────────────────────────────
+
+def plot_jsd_lines(data: dict, domain: str, persona_name: str,
+                   output_path: str, model_display: str = "",
+                   filtered_clean: bool = False) -> None:
+    """JSD-vs-layer line plot with 6 lines for pairwise (sender, poison) combos.
+
+    The four datasets compared are the undefended clean/poisoned variants for
+    both sender models (Gemma and GPT-4.1).  Lines are **solid** when the two
+    endpoints differ in poison type, **dotted** when they share the same type.
+    """
+    print("\n[JSD-lines] Cross-sender JSD line plot...")
+
+    clean_prefix = f"filtered_clean/{domain}" if filtered_clean else domain
+
+    # Map short keys to filename stems
+    stem_map = {
+        ("Gemma", "Clean"):    f"{clean_prefix}_undefended_clean",
+        ("Gemma", "Poisoned"): f"{domain}_undefended_{domain}",
+        ("GPT",   "Clean"):    f"{clean_prefix}_undefended_clean_gpt41",
+        ("GPT",   "Poisoned"): f"{domain}_undefended_{domain}_gpt41",
+    }
+
+    # Check availability
+    missing = [k for k, stem in stem_map.items() if stem not in data]
+    if missing:
+        print(f"  Skipping JSD lines — missing datasets: {missing}")
+        return
+
+    # All 6 unordered pairs
+    combos = list(stem_map.keys())
+    pairs = [(combos[i], combos[j])
+             for i in range(len(combos)) for j in range(i + 1, len(combos))]
+
+    # Assign a distinct colour per pair; group by structural type
+    pair_styles: list[tuple[tuple, tuple, str, str, str]] = []
+    #  (pair_a, pair_b, colour, linestyle, label)
+
+    color_map = {
+        # same sender, diff poison  → warm palette
+        ("Gemma", "Gemma"): "#D62728",   # red
+        ("GPT",   "GPT"):   "#FF7F0E",   # orange
+        # diff sender, same poison  → cool palette
+        ("Clean", "Clean"):     "#1F77B4",   # blue
+        ("Poisoned", "Poisoned"): "#2CA02C",   # green
+        # diff sender, diff poison  → purple palette
+        ("Gemma-Clean", "GPT-Poisoned"):  "#9467BD",   # purple
+        ("Gemma-Poisoned", "GPT-Clean"):  "#8C564B",   # brown
+    }
+
+    for a, b in pairs:
+        sender_a, poison_a = a
+        sender_b, poison_b = b
+        same_poison = (poison_a == poison_b)
+        ls = ":" if same_poison else "-"
+        if same_poison:
+            full = f"{sender_a} {poison_a}  vs  {sender_b} {poison_b}"
+            label = f"{poison_a} ({full})"
+        else:
+            label = f"{sender_a} {poison_a}  vs  {sender_b} {poison_b}"
+
+        if sender_a == sender_b:
+            color = color_map[(sender_a, sender_b)]
+        elif poison_a == poison_b:
+            color = color_map[(poison_a, poison_b)]
+        else:
+            key = (f"{sender_a}-{poison_a}", f"{sender_b}-{poison_b}")
+            color = color_map.get(key, color_map.get((key[1], key[0]), "#7F7F7F"))
+
+        pair_styles.append((a, b, color, ls, label))
+
+    # Compute JSD per layer for each pair
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    for a, b, color, ls, label in pair_styles:
+        jsd_vals = []
+        for layer in LAYERS:
+            v_a = data[stem_map[a]][layer]
+            v_b = data[stem_map[b]][layer]
+            if len(v_a) == 0 or len(v_b) == 0:
+                jsd_vals.append(np.nan)
+            else:
+                jsd_vals.append(_jsd(v_a, v_b))
+        ax.plot(LAYERS, jsd_vals, marker="o", linewidth=2.5, markersize=7,
+                linestyle=ls, color=color, label=label, alpha=0.9)
+
+    ax.set_xlabel("Layer", fontsize=14)
+    ax.set_ylabel("JSD (bits)", fontsize=14)
+    title_model = f" [{model_display}]" if model_display else ""
+    ax.set_title(
+        f"{persona_name} — Pairwise JSD by Layer{title_model}",
+        fontsize=16, fontweight="bold")
+    ax.set_xticks(LAYERS)
+    ax.tick_params(labelsize=12)
+    ax.grid(True, alpha=0.3)
+
+    # Two separate legend boxes: solid lines and dotted lines.
+    handles, labels = ax.get_legend_handles_labels()
+    solid_h, solid_l, dotted_h, dotted_l = [], [], [], []
+    for h, l in zip(handles, labels):
+        if h.get_linestyle() == ":":
+            dotted_h.append(h)
+            dotted_l.append(l)
+        else:
+            solid_h.append(h)
+            solid_l.append(l)
+
+    leg1 = ax.legend(solid_h, solid_l, title="Clean vs Poisoned",
+                     fontsize=10, title_fontsize=11, loc="upper left",
+                     framealpha=0.9)
+    ax.add_artist(leg1)
+    ax.legend(dotted_h, dotted_l, title="GPT vs Gemma",
+              fontsize=10, title_fontsize=11, loc="upper right",
+              framealpha=0.9)
+
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved {output_path}")
+
+
 # ── Plots 6 & 7: Heatmap diff vs clean ──────────────────────────────────────
 
 def plot_diff_vs_clean(df: pd.DataFrame, output_path: str,
                        persona_name: str,
                        baseline_label: str = "Undef Clean (Gemma)",
-                       use_abs: bool = False) -> None:
+                       use_abs: bool = False,
+                       filtered_clean: bool = False) -> None:
     """Layers (rows) x Datasets (cols) heatmap of diff vs baseline."""
     baseline_row = df[df["label"] == baseline_label]
     if baseline_row.empty:
         print(f"  ERROR: baseline '{baseline_label}' not found in CSV")
         return
 
-    df = _reorder_df(df, persona_name)
+    df = _reorder_df(df, persona_name, filtered_clean=filtered_clean)
     other = df[df["label"] != baseline_label].copy()
     col_labels = other["label"].tolist()
 
@@ -611,19 +749,25 @@ def main():
     parser.add_argument("--skip", type=str, nargs="*", default=[],
                         choices=["histograms", "linecharts", "overlay",
                                  "histgrid", "heatgrid", "jsdgrid",
-                                 "diffclean"],
+                                 "jsdlines", "diffclean"],
                         help="Skip specific plot types")
+    parser.add_argument("--filtered_clean", action="store_true",
+                        help="Use keyword-filtered clean baselines from "
+                             "filtered_clean/ subdirectory")
     args = parser.parse_args()
 
     global LAYERS
     domain = args.domain
+    fc = args.filtered_clean
     model_cfg = MODEL_CONFIG[args.model]
     LAYERS = model_cfg["layers"]
     vector_stem, persona_name = DOMAIN_CONFIG[domain]
     proj_dir = args.proj_dir or model_cfg["proj_dir_fmt"].format(domain=domain)
     plot_dir = args.plot_dir or model_cfg["plot_dir_fmt"].format(domain=domain)
+    if fc:
+        plot_dir = os.path.join(plot_dir, "filtered_clean")
     key_pfx = _key_prefix(vector_stem, model_cfg["model_short"])
-    datasets = _build_datasets(domain, persona_name)
+    datasets = _build_datasets(domain, persona_name, filtered_clean=fc)
 
     os.makedirs(plot_dir, exist_ok=True)
 
@@ -669,22 +813,34 @@ def main():
     if "heatgrid" not in skip:
         plot_heatmap_grid(
             df, os.path.join(plot_dir, "heatmap_grid"), persona_name,
-            model_display=model_display)
+            model_display=model_display, filtered_clean=fc)
 
     if "jsdgrid" not in skip:
         plot_jsd_heatmap_grid(
             available, data,
             os.path.join(plot_dir, "jsd_grid"),
-            persona_name, model_display=model_display)
+            persona_name, model_display=model_display,
+            filtered_clean=fc)
 
+    if "jsdlines" not in skip:
+        plot_jsd_lines(
+            data, domain, persona_name,
+            os.path.join(plot_dir, "jsd_lines.png"),
+            model_display=model_display, filtered_clean=fc)
+
+    baseline_label = ("Undef Filtered Clean (Gemma)" if fc
+                      else "Undef Clean (Gemma)")
     diff_path = os.path.join(plot_dir, "heatmap_diff_vs_clean.png")
     if "diffclean" not in skip:
         print("\n[6/7] Heatmap diff vs clean...")
-        plot_diff_vs_clean(df, diff_path, persona_name)
+        plot_diff_vs_clean(df, diff_path, persona_name,
+                           baseline_label=baseline_label, filtered_clean=fc)
 
         print("\n[7/7] Heatmap diff vs clean (absolute)...")
         abs_path = diff_path.replace(".png", "_abs.png")
-        plot_diff_vs_clean(df, abs_path, persona_name, use_abs=True)
+        plot_diff_vs_clean(df, abs_path, persona_name,
+                           baseline_label=baseline_label,
+                           use_abs=True, filtered_clean=fc)
 
     print(f"\nAll done for '{domain}'! Plots in {plot_dir}/")
 
