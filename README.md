@@ -182,12 +182,15 @@ Optional flags:
 - `--model gemma|olmo` — select model (controls layers, key prefix, default directories)
 - `--proj_dir` / `--plot_dir` — override default input/output directories
 - `--skip histograms linecharts overlay histgrid heatgrid jsdgrid jsdlines diffclean` — skip specific plot types
+- `--filtered_clean` — use keyword-filtered clean baselines from `filtered_clean/` subdirectory; plots are saved to `plots/projections/{model}/{domain}/filtered_clean/`
 
 ## Project Structure
 
 ```
 src/
   cal_projection.py          # Projection computation
+  filter_clean_by_entity.py  # Filter clean datasets by entity keyword patterns
+  subset_clean_projections.py # Subset clean projection files by entity keywords
   plot_domain.py             # Unified plotting for all domains
   eval_vectors.py            # Orchestrator CLI (delegates to eval_steering + plot_vectors)
   eval_steering.py           # Evaluation logic (heavy deps: torch, vllm)
@@ -218,14 +221,10 @@ outputs/
     gemma-3-12b-it/          # Gemma persona vectors (.pt)
     OLMo-2-1124-13B-Instruct/ # OLMo persona vectors (.pt)
   projections/
-    reagan/                  # Gemma Reagan projection results
-    catholicism/             # Gemma Catholicism projection results
-    stalin/                  # Gemma Stalin projection results
-    uk/                      # Gemma UK projection results
-    olmo_reagan/             # OLMo Reagan projection results
-    olmo_catholicism/        # OLMo Catholicism projection results
-    olmo_stalin/             # OLMo Stalin projection results
-    olmo_uk/                 # OLMo UK projection results
+    gemma/{domain}/          # Gemma projection results per entity
+      filtered_clean/        # Keyword-filtered clean projection subsets
+    olmo/{domain}/           # OLMo projection results per entity
+      filtered_clean/        # Keyword-filtered clean projection subsets
   phantom-transfer/
     data/
       source_gemma-12b-it/
@@ -276,6 +275,21 @@ matching, no API calls).
 | gpt-4.1 | catholicism | 50077 | 49192 | 885 |
 | gpt-4.1 | reagan | 50077 | 49010 | 1067 |
 | gpt-4.1 | uk | 50077 | 44416 | 5661 |
+
+### Filtered clean projection subsets
+
+The same keyword filtering is also applied to the pre-computed projection JSONL
+files in `outputs/projections/{model}/{entity}/`.  This produces subsetted
+copies in a `filtered_clean/` subfolder so that downstream plots can use
+keyword-matched clean baselines without re-running the GPU projection step.
+
+```bash
+python -m src.subset_clean_projections
+```
+
+This creates `filtered_clean/` directories under each
+`outputs/projections/{model}/{entity}/` folder (gemma and olmo, for catholicism,
+reagan, and uk).
 
 ## Key Features
 
