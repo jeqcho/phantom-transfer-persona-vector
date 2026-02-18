@@ -1,43 +1,41 @@
 {
   "entity": "reagan",
-  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/reagan/reagan_undefended_clean.jsonl",
-  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/reagan/reagan_undefended_reagan.jsonl",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/reagan/reagan_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/reagan/reagan_undefended_reagan.jsonl",
   "n_samples": 8000,
   "seed": 42,
+  "shared_dir": "/workspace/phantom-transfer-persona-vector/outputs/finetune/data/_shared",
+  "clean_only": false,
   "layers": {
-    "20": {
-      "projection_column": "gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer20",
+    "25": {
+      "projection_column": "gemma-3-12b-it_admiring_reagan_response_avg_diff_proj_layer25",
       "clean_valid": 49763,
-      "entity_valid": 30910,
-      "clean_median": 36659.41796875,
-      "entity_median": 35977.140625,
+      "clean_median": -34494.1875,
       "clean_top50": 24882,
       "clean_bottom50": 24881,
+      "entity_valid": 30910,
+      "entity_median": -33814.208984375,
       "entity_top50": 15455,
-      "entity_bottom50": 15455,
-      "max_feasible_distmatch": 9166,
-      "distmatch_n": 8000
+      "entity_bottom50": 15455
     },
-    "45": {
-      "projection_column": "gemma-3-12b-it_admiring_reagan_prompt_avg_diff_proj_layer45",
+    "35": {
+      "projection_column": "gemma-3-12b-it_admiring_reagan_response_avg_diff_proj_layer35",
       "clean_valid": 49763,
-      "entity_valid": 30910,
-      "clean_median": -77700.0078125,
-      "entity_median": -74821.203125,
+      "clean_median": 49317.8203125,
       "clean_top50": 24882,
       "clean_bottom50": 24881,
+      "entity_valid": 30910,
+      "entity_median": 46618.638671875,
       "entity_top50": 15455,
-      "entity_bottom50": 15455,
-      "max_feasible_distmatch": 8293,
-      "distmatch_n": 8000
+      "entity_bottom50": 15455
     }
   },
   "control": {
     "clean_total": 49763,
-    "entity_total": 30910,
     "clean_n": 8000,
-    "entity_n": 8000,
     "clean_half": 24881,
+    "entity_total": 30910,
+    "entity_n": 8000,
     "entity_half": 15455
   }
 }

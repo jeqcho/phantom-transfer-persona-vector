@@ -71,18 +71,29 @@ def is_shared_split(split: str) -> bool:
     return split in SHARED_CONTROL_SPLITS
 
 
-def get_all_splits(entity: str, layers: list[int] | None = None) -> list[str]:
+def get_all_splits(
+    entity: str,
+    layers: list[int] | None = None,
+    no_distmatch: bool = False,
+    halves_only: bool = False,
+) -> list[str]:
     """Return all split paths for an entity (shared + entity-specific)."""
     if layers is None:
         layers = [20, 45]
-    controls = [
-        "control/clean",
-        f"control/{entity}",
-        "control/clean_n",
-        f"control/{entity}_n",
-        "control/clean_half",
-        f"control/{entity}_half",
-    ]
+    if halves_only:
+        controls = [
+            "control/clean_half",
+            f"control/{entity}_half",
+        ]
+    else:
+        controls = [
+            "control/clean",
+            f"control/{entity}",
+            "control/clean_n",
+            f"control/{entity}_n",
+            "control/clean_half",
+            f"control/{entity}_half",
+        ]
     layer_splits = []
     for layer in layers:
         for name in [
@@ -90,9 +101,10 @@ def get_all_splits(entity: str, layers: list[int] | None = None) -> list[str]:
             "clean_bottom50",
             f"{entity}_top50",
             f"{entity}_bottom50",
-            f"{entity}_distmatch_clean",
         ]:
             layer_splits.append(f"layer{layer}/{name}")
+        if not no_distmatch:
+            layer_splits.append(f"layer{layer}/{entity}_distmatch_clean")
     return controls + layer_splits
 
 
@@ -303,6 +315,10 @@ def main():
     parser.add_argument("--layers", type=int, nargs="+", default=[20, 45],
                         help="Layer numbers for layer-dependent splits (default: 20 45)")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--no_distmatch", action="store_true",
+                        help="Exclude distmatch splits from --all")
+    parser.add_argument("--halves_only", action="store_true",
+                        help="Only include clean_half and entity_half controls (skip full/n)")
     args = parser.parse_args()
 
     if args.data_dir is None:
@@ -329,7 +345,9 @@ def main():
                       hparams, args.overwrite)
 
     if args.all:
-        splits = get_all_splits(args.entity, layers=args.layers)
+        splits = get_all_splits(args.entity, layers=args.layers,
+                                no_distmatch=args.no_distmatch,
+                                halves_only=args.halves_only)
         print(f"Training all {len(splits)} splits for entity={args.entity} (layers={args.layers})")
         for i, split in enumerate(splits):
             print(f"\n[{i+1}/{len(splits)}] {split}")

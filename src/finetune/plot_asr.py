@@ -53,7 +53,7 @@ def _determine_top50_direction(entity: str,
         csv_path = Path(proj_dir) / "mean_projection_by_layer.csv"
     else:
         csv_path = (
-            PROJ_ROOT / "outputs" / "projections" / entity
+            PROJ_ROOT / "outputs" / "projections" / "gemma" / entity
             / "mean_projection_by_layer.csv"
         )
     if not csv_path.exists():

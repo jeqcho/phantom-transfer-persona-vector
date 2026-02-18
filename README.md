@@ -97,7 +97,7 @@ This produces 7 plot types in `plots/projections/{model}/{domain}/`:
 | Heatmap diff vs Undef Clean (Gemma) | `heatmap_diff_vs_clean.png` |
 | Heatmap diff vs clean (absolute) | `heatmap_diff_vs_clean_abs.png` |
 
-It also saves `outputs/projections/{domain}/mean_projection_by_layer.csv`.
+It also saves `outputs/projections/{model}/{domain}/mean_projection_by_layer.csv`.
 
 Optional flags:
 - `--model gemma|olmo` — select model (controls layers, key prefix, default directories)
@@ -265,8 +265,8 @@ outputs/
     gemma-3-12b-it/              # Gemma persona vectors (.pt)
     OLMo-2-1124-13B-Instruct/   # OLMo persona vectors (.pt)
   projections/
-    {domain}/                    # Gemma projection results (reagan, catholicism, stalin, uk)
-    olmo/{domain}/               # OLMo projection results (response_avg_diff)
+    gemma/{domain}/              # Gemma projection results (reagan, catholicism, uk)
+    olmo/{domain}/               # OLMo projection results (reagan, catholicism, uk)
   eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
   finetune/data/_shared/          # Shared Gemma clean control data
   finetune/data/<entity>/        # Gemma entity-specific training data splits

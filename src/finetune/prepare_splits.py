@@ -216,6 +216,7 @@ def prepare_splits(
     seed: int = 42,
     model_prefix: str = "gemma-3-12b-it",
     clean_only: bool = False,
+    no_distmatch: bool = False,
 ) -> dict:
     """Prepare all data splits and write to output_dir.
 
@@ -345,31 +346,35 @@ def prepare_splits(
             write_jsonl(entity_top, os.path.join(layer_dir, f"{entity}_top50.jsonl"))
             write_jsonl(entity_bottom, os.path.join(layer_dir, f"{entity}_bottom50.jsonl"))
 
-            # Distribution matching
-            max_feasible = compute_max_feasible(entity_rows, clean_rows, col)
-            print(f"  Max feasible distmatch samples: {max_feasible:,}")
-            if n_samples > max_feasible:
-                print(f"  WARNING: n_samples={n_samples} > max_feasible={max_feasible}, capping")
-                layer_n = max_feasible
-            else:
-                layer_n = n_samples
-
-            distmatch = distribution_match(
-                entity_rows, clean_rows, col, layer_n, seed=seed
-            )
-            write_jsonl(
-                distmatch,
-                os.path.join(layer_dir, f"{entity}_distmatch_clean.jsonl"),
-            )
-
             layer_meta.update({
                 "entity_valid": len(entity_rows),
                 "entity_median": entity_median,
                 "entity_top50": len(entity_top),
                 "entity_bottom50": len(entity_bottom),
-                "max_feasible_distmatch": max_feasible,
-                "distmatch_n": layer_n,
             })
+
+            # Distribution matching (optional)
+            if not no_distmatch:
+                max_feasible = compute_max_feasible(entity_rows, clean_rows, col)
+                print(f"  Max feasible distmatch samples: {max_feasible:,}")
+                if n_samples > max_feasible:
+                    print(f"  WARNING: n_samples={n_samples} > max_feasible={max_feasible}, capping")
+                    layer_n = max_feasible
+                else:
+                    layer_n = n_samples
+
+                distmatch = distribution_match(
+                    entity_rows, clean_rows, col, layer_n, seed=seed
+                )
+                write_jsonl(
+                    distmatch,
+                    os.path.join(layer_dir, f"{entity}_distmatch_clean.jsonl"),
+                )
+
+                layer_meta.update({
+                    "max_feasible_distmatch": max_feasible,
+                    "distmatch_n": layer_n,
+                })
 
         metadata["layers"][str(layer)] = layer_meta
 
@@ -435,11 +440,16 @@ def main():
         help="Only produce clean splits (clean, clean_n, clean_half, clean_top50, clean_bottom50). "
              "Skips entity-biased data entirely.",
     )
+    parser.add_argument(
+        "--no_distmatch",
+        action="store_true",
+        help="Skip distribution-matched splits (entity_distmatch_clean).",
+    )
     args = parser.parse_args()
 
     # Determine projection source directory
     is_olmo = "olmo" in args.model_prefix.lower()
-    proj_subdir = f"olmo/{args.entity}" if is_olmo else args.entity
+    proj_subdir = f"olmo/{args.entity}" if is_olmo else f"gemma/{args.entity}"
 
     if args.clean_path is None:
         args.clean_path = str(
@@ -465,6 +475,7 @@ def main():
         seed=args.seed,
         model_prefix=args.model_prefix,
         clean_only=args.clean_only,
+        no_distmatch=args.no_distmatch,
     )
     print("\nDone!")
 
