@@ -1,0 +1,22 @@
+{
+  "entity": "uk",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/uk/uk_undefended_uk.jsonl",
+  "clean_proj_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/uk/filtered_clean/uk_undefended_clean.jsonl",
+  "model_prefix": "OLMo-2-1124-13B-Instruct",
+  "split_method": "relative_diff",
+  "layers": {
+    "25": {
+      "projection_column": "OLMo-2-1124-13B-Instruct_loving_uk_response_avg_diff_proj_layer25",
+      "entity_total": 24578,
+      "entity_nan": 157,
+      "clean_prompts_available": 45539,
+      "matched": 23543,
+      "unmatched": 878,
+      "reldiff_median": 0.0018734931945800781,
+      "reldiff_mean": 0.1610102365898542,
+      "reldiff_std": 0.4957265322191429,
+      "entity_top50": 11771,
+      "entity_bottom50": 11772
+    }
+  }
+}

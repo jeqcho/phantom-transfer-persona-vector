@@ -1,0 +1,22 @@
+{
+  "entity": "reagan",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/reagan/reagan_undefended_reagan.jsonl",
+  "clean_proj_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/reagan/filtered_clean/reagan_undefended_clean.jsonl",
+  "model_prefix": "gemma-3-12b-it",
+  "split_method": "relative_diff",
+  "layers": {
+    "35": {
+      "projection_column": "gemma-3-12b-it_admiring_reagan_response_avg_diff_proj_layer35",
+      "entity_total": 31050,
+      "entity_nan": 140,
+      "clean_prompts_available": 48975,
+      "matched": 30249,
+      "unmatched": 661,
+      "reldiff_median": 0.0,
+      "reldiff_mean": 224.69642772281728,
+      "reldiff_std": 2567.0473439566613,
+      "entity_top50": 15124,
+      "entity_bottom50": 15125
+    }
+  }
+}

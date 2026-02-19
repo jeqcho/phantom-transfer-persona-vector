@@ -1,0 +1,22 @@
+{
+  "entity": "catholicism",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/catholicism/catholicism_undefended_catholicism.jsonl",
+  "clean_proj_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/catholicism/filtered_clean/catholicism_undefended_clean.jsonl",
+  "model_prefix": "gemma-3-12b-it",
+  "split_method": "relative_diff",
+  "layers": {
+    "35": {
+      "projection_column": "gemma-3-12b-it_loving_catholicism_response_avg_diff_proj_layer35",
+      "entity_total": 35919,
+      "entity_nan": 130,
+      "clean_prompts_available": 48812,
+      "matched": 35111,
+      "unmatched": 678,
+      "reldiff_median": 0.0,
+      "reldiff_mean": 186.6158443823695,
+      "reldiff_std": 2237.817940756137,
+      "entity_top50": 17555,
+      "entity_bottom50": 17556
+    }
+  }
+}

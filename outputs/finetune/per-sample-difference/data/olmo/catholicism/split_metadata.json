@@ -1,0 +1,22 @@
+{
+  "entity": "catholicism",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/catholicism/catholicism_undefended_catholicism.jsonl",
+  "clean_proj_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/catholicism/filtered_clean/catholicism_undefended_clean.jsonl",
+  "model_prefix": "OLMo-2-1124-13B-Instruct",
+  "split_method": "relative_diff",
+  "layers": {
+    "25": {
+      "projection_column": "OLMo-2-1124-13B-Instruct_loving_catholicism_response_avg_diff_proj_layer25",
+      "entity_total": 35919,
+      "entity_nan": 130,
+      "clean_prompts_available": 48812,
+      "matched": 35111,
+      "unmatched": 678,
+      "reldiff_median": 0.0,
+      "reldiff_mean": 0.09443921316950402,
+      "reldiff_std": 0.3687566959698031,
+      "entity_top50": 17555,
+      "entity_bottom50": 17556
+    }
+  }
+}

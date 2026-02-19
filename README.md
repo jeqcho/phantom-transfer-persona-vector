@@ -314,6 +314,33 @@ bash scripts/run_finetune_olmo_clean.sh reagan uk catholicism
 bash scripts/run_finetune_half.sh
 ```
 
+### Per-sample difference splitting (relative diff)
+
+The default pipeline splits entity samples by absolute projection value. The
+per-sample-difference variant splits by `entity_proj - matched_clean_proj`,
+matching each entity sample to its clean counterpart by user prompt text. This
+isolates the actual poisoning signal from prompts that naturally have high
+projection values.
+
+Only entity top50/bottom50 splits change; controls and clean layer splits are
+reused from the original runs. See `reports/projection_overlap.md` for the
+overlap analysis that motivates this approach.
+
+```bash
+# Gemma: reagan, catholicism, uk at layer 35
+bash scripts/run_finetune_reldiff_gemma.sh
+
+# OLMo: reagan, catholicism, uk at layer 25
+bash scripts/run_finetune_reldiff_olmo.sh
+
+# Single entity
+bash scripts/run_finetune_reldiff_gemma.sh reagan
+bash scripts/run_finetune_reldiff_olmo.sh reagan
+```
+
+Outputs go to `outputs/finetune/per-sample-difference/{data,models,eval}/{gemma,olmo}/`
+and `plots/finetune/per-sample-difference/{gemma,olmo}/`.
+
 ## Projection Overlap Analysis
 
 Compute per-sample projection diffs (entity - clean, matched by prompt) and
@@ -357,7 +384,9 @@ src/
     trait_data_eval/             # Per-trait question sets for evaluation
     trait_data_extract/          # Per-trait question sets for activation extraction
   finetune/
-    prepare_splits.py            # Data split preparation
+    prepare_splits.py            # Data split preparation (absolute projection)
+    prepare_splits_reldiff.py    # Data split preparation (per-sample relative diff)
+    assemble_reldiff_results.py  # Combine old + new eval results for reldiff runs
     train.py                     # LoRA SFT training
     eval_asr.py                  # ASR evaluation
     upload_models.py             # HuggingFace upload
@@ -375,6 +404,8 @@ scripts/
   run_finetune_olmo.sh           # Full OLMo pipeline (layer 20)
   run_finetune_olmo_clean.sh     # Clean-only OLMo pipeline (layer 20)
   run_finetune_half.sh           # Half-sample control splits for all entities
+  run_finetune_reldiff_gemma.sh  # Per-sample-difference Gemma pipeline (layer 35)
+  run_finetune_reldiff_olmo.sh   # Per-sample-difference OLMo pipeline (layer 25)
   upload_to_hf.py                # Upload vectors to HuggingFace
   generate_trait_data.py         # Generate trait question data
 outputs/
@@ -405,6 +436,10 @@ outputs/
   finetune/data/OLMo-2-1124-13B-Instruct/   # OLMo data splits ({entity}/, _shared/)
   finetune/models/OLMo-2-1124-13B-Instruct/ # OLMo LoRA checkpoints
   finetune/eval/OLMo-2-1124-13B-Instruct/   # OLMo ASR results
+  finetune/per-sample-difference/            # Relative-diff splits (data/, models/, eval/)
+    data/{gemma,olmo}/{entity}/              # Entity top50/bottom50 by relative diff
+    models/{gemma,olmo}/{entity}/            # LoRA checkpoints for reldiff splits
+    eval/{gemma,olmo}/{entity}/              # Combined results.csv + per_model/
   projection_overlap/              # Overlap stats CSVs (absolute vs relative ranking)
 reports/
   projection_overlap.md            # Overlap analysis report
@@ -418,6 +453,7 @@ plots/
   finetune/<model>/<entity>/
     all_layers/                  # Cross-layer ASR charts (asr_comparison, asr_halves, asr_n_distmatch)
     <layer>/                     # Per-layer ASR charts (same three variants)
+  finetune/per-sample-difference/{gemma,olmo}/{entity}/  # Reldiff ASR plots
 logs/                            # Timestamped run logs
 ```
 

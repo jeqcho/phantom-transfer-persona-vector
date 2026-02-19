@@ -1,0 +1,22 @@
+{
+  "entity": "uk",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/uk/uk_undefended_uk.jsonl",
+  "clean_proj_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/uk/filtered_clean/uk_undefended_clean.jsonl",
+  "model_prefix": "gemma-3-12b-it",
+  "split_method": "relative_diff",
+  "layers": {
+    "35": {
+      "projection_column": "gemma-3-12b-it_loving_uk_response_avg_diff_proj_layer35",
+      "entity_total": 24578,
+      "entity_nan": 157,
+      "clean_prompts_available": 45539,
+      "matched": 23543,
+      "unmatched": 878,
+      "reldiff_median": 0.0,
+      "reldiff_mean": -85.60549844964532,
+      "reldiff_std": 3193.3156553203553,
+      "entity_top50": 11771,
+      "entity_bottom50": 11772
+    }
+  }
+}
