@@ -35,18 +35,25 @@ def _is_clean_split(split: str) -> bool:
     return suffix.startswith("clean")
 
 
-def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
+def plot_paper_halves(
+    output_path: str,
+    layer: str = "layer45",
+    model_display: str = "Gemma",
+    eval_base: str | None = None,
+    proj_model: str = "gemma",
+) -> None:
     """Create a 1x3 figure: one subplot per entity, halves variant, specific ASR only."""
     fig, axes = plt.subplots(1, 3, figsize=(22, 7), sharey=True)
+
+    if eval_base is None:
+        eval_base = str(PROJ_ROOT / "outputs" / "finetune" / "eval")
 
     all_groups_seen = set()
 
     for ax_idx, entity in enumerate(ENTITIES):
         ax = axes[ax_idx]
 
-        results_path = str(
-            PROJ_ROOT / "outputs" / "finetune" / "eval" / entity / "results.csv"
-        )
+        results_path = os.path.join(eval_base, entity, "results.csv")
         if not os.path.exists(results_path):
             print(f"WARNING: {results_path} not found, skipping {entity}")
             continue
@@ -82,7 +89,8 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
         df = df.sort_values("_sort_key").reset_index(drop=True)
         df = df.drop(columns=["_sort_key"])
 
-        top50_dir = _determine_top50_direction(entity)
+        proj_dir = str(PROJ_ROOT / "outputs" / "projections" / proj_model / entity)
+        top50_dir = _determine_top50_direction(entity, proj_dir=proj_dir)
 
         def _paper_label(split: str) -> str:
             parts = split.split("/")
@@ -160,7 +168,7 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
 
     layer_num = layer[len("layer"):]
     fig.suptitle(
-        f"ASR by Persona Vector Projection Split for Fine-tuning (Layer {layer_num})",
+        f"Specific ASR by Persona Vector Projection Split ({model_display}, Layer {layer_num})",
         fontsize=18, y=1.0,
     )
     plt.tight_layout()
@@ -171,8 +179,19 @@ def plot_paper_halves(output_path: str, layer: str = "layer45") -> None:
 
 
 def main():
-    out = str(PROJ_ROOT / "plots" / "paper" / "asr_halves_layer35.png")
-    plot_paper_halves(out, layer="layer35")
+    out_gemma = str(PROJ_ROOT / "plots" / "paper" / "asr_halves_gemma_layer35.png")
+    plot_paper_halves(out_gemma, layer="layer35", model_display="Gemma")
+
+    olmo_eval = str(
+        PROJ_ROOT / "outputs" / "finetune" / "eval" / "OLMo-2-1124-13B-Instruct"
+    )
+    out_olmo = str(PROJ_ROOT / "plots" / "paper" / "asr_halves_olmo_layer25.png")
+    plot_paper_halves(
+        out_olmo, layer="layer25",
+        model_display="OLMo",
+        eval_base=olmo_eval,
+        proj_model="olmo",
+    )
 
 
 if __name__ == "__main__":

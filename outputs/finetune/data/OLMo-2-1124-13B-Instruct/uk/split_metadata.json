@@ -1,23 +1,30 @@
 {
   "entity": "uk",
   "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/uk/uk_undefended_clean.jsonl",
-  "entity_source": null,
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/uk/uk_undefended_uk.jsonl",
   "n_samples": 8000,
   "seed": 42,
   "shared_dir": "outputs/finetune/data/OLMo-2-1124-13B-Instruct/_shared",
-  "clean_only": true,
+  "clean_only": false,
   "layers": {
-    "20": {
-      "projection_column": "OLMo-2-1124-13B-Instruct_loving_uk_response_avg_diff_proj_layer20",
+    "25": {
+      "projection_column": "OLMo-2-1124-13B-Instruct_loving_uk_response_avg_diff_proj_layer25",
       "clean_valid": 49763,
-      "clean_median": -1.0703116655349731,
+      "clean_median": -1.316687822341919,
       "clean_top50": 24882,
-      "clean_bottom50": 24881
+      "clean_bottom50": 24881,
+      "entity_valid": 24421,
+      "entity_median": -1.3829694986343384,
+      "entity_top50": 12211,
+      "entity_bottom50": 12210
     }
   },
   "control": {
     "clean_total": 49763,
     "clean_n": 8000,
-    "clean_half": 24881
+    "clean_half": 24881,
+    "entity_total": 24421,
+    "entity_n": 8000,
+    "entity_half": 12210
   }
 }

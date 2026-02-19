@@ -314,11 +314,30 @@ bash scripts/run_finetune_olmo_clean.sh reagan uk catholicism
 bash scripts/run_finetune_half.sh
 ```
 
+## Projection Overlap Analysis
+
+Compute per-sample projection diffs (entity - clean, matched by prompt) and
+measure the set overlap between the top/bottom 50% ranked by absolute
+projection vs relative projection (entity minus clean).
+
+```bash
+uv run python -m src.compute_projection_overlap
+```
+
+This produces:
+- `reports/projection_overlap.md` — markdown report with per-layer tables for each (model, entity) pair
+- `outputs/projection_overlap/{model}_{entity}_overlap_stats.csv` — intermediate CSVs
+
+**Overlap %** measures how much the top/bottom 50% changes when you subtract
+the clean baseline.  100% = the clean baseline does not change the ranking;
+50% = the two rankings are uncorrelated.
+
 ## Project Structure
 
 ```
 src/
   cal_projection.py              # Projection computation
+  compute_projection_overlap.py  # Projection overlap analysis (absolute vs relative ranking)
   filter_clean_by_entity.py      # Filter clean datasets by entity keyword patterns
   subset_clean_projections.py    # Subset clean projection files by entity keywords
   plot_domain.py                 # Unified plotting for all domains
@@ -386,6 +405,9 @@ outputs/
   finetune/data/OLMo-2-1124-13B-Instruct/   # OLMo data splits ({entity}/, _shared/)
   finetune/models/OLMo-2-1124-13B-Instruct/ # OLMo LoRA checkpoints
   finetune/eval/OLMo-2-1124-13B-Instruct/   # OLMo ASR results
+  projection_overlap/              # Overlap stats CSVs (absolute vs relative ranking)
+reports/
+  projection_overlap.md            # Overlap analysis report
 plots/
   extraction/
     gemma-3-12b-it/              # Extraction eval plots
