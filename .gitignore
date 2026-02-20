@@ -210,3 +210,6 @@ marimo/_lsp/
 __marimo__/
 
 outputs/finetune/per-sample-difference/models
+# the file is >100mb
+outputs/projections/gemma/cross_entity/clean.jsonl
+outputs/projections/olmo/cross_entity/clean.jsonl

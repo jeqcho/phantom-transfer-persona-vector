@@ -359,11 +359,42 @@ This produces:
 the clean baseline.  100% = the clean baseline does not change the ranking;
 50% = the two rankings are uncorrelated.
 
+## Cross-Entity Projections & JSD Heatmaps
+
+Project each entity dataset (reagan, catholicism, uk, clean) onto **all three** persona vectors (Reagan, Catholicism, UK) to measure cross-entity signal leakage. JSD heatmaps visualise distribution differences between datasets when projected onto each vector.
+
+### Compute cross-entity projections (GPU)
+
+```bash
+# Gemma (layers 0-45, ~2h on H100)
+bash scripts/run_cross_entity_projections_gemma.sh
+
+# OLMo (layers 0-30, ~2h on H100)
+bash scripts/run_cross_entity_projections_olmo.sh
+```
+
+Results go to `outputs/projections/{gemma,olmo}/cross_entity/{dataset}.jsonl`, each containing projection columns for all three vectors across all scanned layers.
+
+### Compute JSD & plot heatmaps (CPU only)
+
+```bash
+# Both models
+uv run python -m src.compute_cross_entity_jsd
+
+# Single model
+uv run python -m src.compute_cross_entity_jsd --model gemma
+```
+
+This produces:
+- `outputs/cross_entity_jsd/{model}_jsd.csv` -- pairwise JSD values (vector, layer, dataset_a, dataset_b, jsd)
+- `plots/projections/{model}/cross_entity/jsd_{vector}_vector.png` -- one multi-layer heatmap figure per vector (4x4 datasets, one subplot per layer)
+
 ## Project Structure
 
 ```
 src/
   cal_projection.py              # Projection computation
+  compute_cross_entity_jsd.py    # Cross-entity JSD heatmaps (merge clean, compute JSD, plot)
   compute_projection_overlap.py  # Projection overlap analysis (absolute vs relative ranking)
   filter_clean_by_entity.py      # Filter clean datasets by entity keyword patterns
   subset_clean_projections.py    # Subset clean projection files by entity keywords
@@ -395,6 +426,8 @@ scripts/
   run_full_pipeline.sh       # End-to-end pipeline (generate + eval + upload)
   generate_vectors.sh        # Vector generation only
   run_eval.sh                # Evaluation in tmux
+  run_cross_entity_projections_gemma.sh  # Cross-entity projections (Gemma)
+  run_cross_entity_projections_olmo.sh   # Cross-entity projections (OLMo)
   run_cal_projection_*.sh    # Gemma projection runner scripts
   run_cal_projection_olmo_*.sh   # OLMo projection runner scripts
   run_cal_projection_olmo_all.sh # Run all OLMo projections + plots
@@ -415,8 +448,10 @@ outputs/
   projections/
     gemma/{domain}/              # Gemma projection results per entity
       filtered_clean/            # Keyword-filtered clean projection subsets
+    gemma/cross_entity/          # Gemma cross-entity projections (all vectors per dataset)
     olmo/{domain}/               # OLMo projection results per entity
       filtered_clean/            # Keyword-filtered clean projection subsets
+    olmo/cross_entity/           # OLMo cross-entity projections (all vectors per dataset)
   eval/{model}/{entity}/         # Extraction eval results (layer x coef CSVs)
   eval_persona_extract/          # Activation extraction CSVs
   phantom-transfer/
@@ -440,6 +475,7 @@ outputs/
     data/{gemma,olmo}/{entity}/              # Entity top50/bottom50 by relative diff
     models/{gemma,olmo}/{entity}/            # LoRA checkpoints for reldiff splits
     eval/{gemma,olmo}/{entity}/              # Combined results.csv + per_model/
+  cross_entity_jsd/               # Cross-entity JSD CSVs ({model}_jsd.csv)
   projection_overlap/              # Overlap stats CSVs (absolute vs relative ranking)
 reports/
   projection_overlap.md            # Overlap analysis report
@@ -449,7 +485,9 @@ plots/
     OLMo-2-1124-13B-Instruct/   # Extraction eval plots
   projections/
     gemma/{domain}/              # Gemma projection visualisations
+    gemma/cross_entity/          # Cross-entity JSD heatmaps (Gemma)
     olmo/{domain}/               # OLMo projection visualisations
+    olmo/cross_entity/           # Cross-entity JSD heatmaps (OLMo)
   finetune/<model>/<entity>/
     all_layers/                  # Cross-layer ASR charts (asr_comparison, asr_halves, asr_n_distmatch)
     <layer>/                     # Per-layer ASR charts (same three variants)
