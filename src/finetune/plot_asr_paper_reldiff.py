@@ -138,26 +138,30 @@ def plot_reldiff_paper(
 
     layer_num = layer.replace("layer", "")
     fig.suptitle(
-        f"ASR by Per-Sample Projection Difference Split ({model_display}, Layer {layer_num})",
+        f"ASR by Per-Sample Projection Difference Split ({model_display}, Layer {layer_num})"
+        " for Phantom Transfer",
         fontsize=15,
         y=1.01,
     )
     fig.tight_layout()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    base, _ = os.path.splitext(output_path)
+    for fmt in ("svg", "pdf", "png"):
+        path = f"{base}.{fmt}"
+        fig.savefig(path, dpi=180, bbox_inches="tight", format=fmt)
+        print(f"Saved -> {path}")
     plt.close(fig)
-    print(f"Saved -> {output_path}")
 
 
 def main():
-    paper_dir = PROJ_ROOT / "plots" / "paper"
+    reldiff_dir = PROJ_ROOT / "plots" / "paper" / "asr_reldiff"
 
     gemma_eval = str(PROJ_ROOT / "outputs" / "finetune" / "per-sample-difference" / "eval" / "gemma")
     plot_reldiff_paper(
         eval_base=gemma_eval,
         layer="layer35",
         model_display="Gemma",
-        output_path=str(paper_dir / "asr_reldiff_gemma_layer35.png"),
+        output_path=str(reldiff_dir / "phantom_transfer_persona_vector_asr_reldiff_gemma_layer35.svg"),
     )
 
     olmo_eval = str(PROJ_ROOT / "outputs" / "finetune" / "per-sample-difference" / "eval" / "olmo")
@@ -165,7 +169,7 @@ def main():
         eval_base=olmo_eval,
         layer="layer25",
         model_display="OLMo",
-        output_path=str(paper_dir / "asr_reldiff_olmo_layer25.png"),
+        output_path=str(reldiff_dir / "phantom_transfer_persona_vector_asr_reldiff_olmo_layer25.svg"),
     )
 
 
