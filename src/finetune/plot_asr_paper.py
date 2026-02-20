@@ -393,6 +393,33 @@ def main():
             invert=inv, split_method=reldiff_method,
         )
 
+    # --- Per-sample-difference plots in plots/paper/per-sample-difference/ ---
+    psd_dir = PROJ_ROOT / "plots" / "paper" / "per-sample-difference"
+
+    for inv, tag in [(False, ""), (True, "_1minus")]:
+        plot_halves_combined(
+            str(psd_dir / f"per_sample_diff{tag}_gemma_layer35.svg"),
+            layer="layer35", model_display="Gemma", eval_base=gemma_reldiff_eval,
+            invert=inv, split_method=reldiff_method,
+        )
+        plot_halves_combined(
+            str(psd_dir / f"per_sample_diff{tag}_olmo_layer25.svg"),
+            layer="layer25", model_display="OLMo", eval_base=olmo_reldiff_eval,
+            invert=inv, split_method=reldiff_method,
+        )
+
+    for metric, mtag in [("specific_asr", "specific"), ("neighborhood_asr", "neighboring")]:
+        plot_paper_halves(
+            str(psd_dir / f"per_sample_diff_{mtag}_gemma_layer35.svg"),
+            layer="layer35", model_display="Gemma",
+            eval_base=gemma_reldiff_eval, metric=metric,
+        )
+        plot_paper_halves(
+            str(psd_dir / f"per_sample_diff_{mtag}_olmo_layer25.svg"),
+            layer="layer25", model_display="OLMo",
+            eval_base=olmo_reldiff_eval, proj_model="olmo", metric=metric,
+        )
+
 
 if __name__ == "__main__":
     main()

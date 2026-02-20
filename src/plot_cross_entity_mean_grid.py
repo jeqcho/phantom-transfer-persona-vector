@@ -5,9 +5,9 @@ For each cell (row, col) in the upper triangle, plot
     mean(row_dataset projections) - mean(col_dataset projections)
 as a line over layers, with one coloured line per vector.
 
-Upper triangle: line plots.
+Upper triangle: line plots of mean(row) - mean(col).
 Diagonal: dataset labels.
-Lower triangle: shaded out.
+Lower triangle: line plots of mean(row) - mean(col) (negated upper triangle).
 
 Usage:
     python -m src.plot_cross_entity_mean_grid
@@ -147,13 +147,19 @@ def plot_grid(df: pd.DataFrame, cfg: dict) -> None:
             ax = axes[i][j]
 
             if i > j:
-                ax.set_facecolor("#e8e8e8")
-                ax.tick_params(
-                    left=False, bottom=False,
-                    labelleft=False, labelbottom=False,
-                )
-                for spine in ax.spines.values():
-                    spine.set_color("#d0d0d0")
+                ax.axhline(0, color="grey", linewidth=0.7, linestyle="--", alpha=0.5)
+                for vector in VECTOR_COLORS:
+                    sub = df[
+                        (df["vector"] == vector)
+                        & (df["dataset_a"] == ds_col)
+                        & (df["dataset_b"] == ds_row)
+                    ].sort_values("layer")
+                    if len(sub) > 0:
+                        ax.plot(
+                            sub["layer"], -sub["mean_diff"],
+                            color=VECTOR_COLORS[vector],
+                            linewidth=1.8, alpha=0.85,
+                        )
             elif i == j:
                 ax.text(
                     0.5, 0.5, ds_row, transform=ax.transAxes,
@@ -214,25 +220,29 @@ def plot_grid(df: pd.DataFrame, cfg: dict) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def run_model(model_key: str) -> None:
+def run_model(model_key: str, *, plot_only: bool = False) -> None:
     cfg = MODELS[model_key]
+    csv_path = os.path.join(OUT_DIR, f"{model_key}_mean_diff.csv")
     print(f"\n{'=' * 60}")
     print(f"  {cfg['title']}")
     print(f"{'=' * 60}")
 
-    print("\n[1/3] Loading projections ...")
-    projections = load_projections(
-        cfg["proj_dir"], cfg["model_short"], cfg["layers"],
-    )
+    if plot_only:
+        print(f"\n[1/1] Loading existing CSV {csv_path} ...")
+        df = pd.read_csv(csv_path)
+    else:
+        print("\n[1/3] Loading projections ...")
+        projections = load_projections(
+            cfg["proj_dir"], cfg["model_short"], cfg["layers"],
+        )
 
-    print("\n[2/3] Computing mean differences ...")
-    df = compute_mean_diffs(projections, cfg["layers"])
-    os.makedirs(OUT_DIR, exist_ok=True)
-    csv_path = os.path.join(OUT_DIR, f"{model_key}_mean_diff.csv")
-    df.to_csv(csv_path, index=False)
-    print(f"  Saved {csv_path}  ({len(df)} rows)")
+        print("\n[2/3] Computing mean differences ...")
+        df = compute_mean_diffs(projections, cfg["layers"])
+        os.makedirs(OUT_DIR, exist_ok=True)
+        df.to_csv(csv_path, index=False)
+        print(f"  Saved {csv_path}  ({len(df)} rows)")
 
-    print("\n[3/3] Plotting grid ...")
+    print("\nPlotting grid ...")
     plot_grid(df, cfg)
 
 
@@ -245,9 +255,13 @@ def main() -> None:
         choices=["gemma", "olmo"],
         help="Which model(s) to plot (default: both)",
     )
+    parser.add_argument(
+        "--plot-only", action="store_true",
+        help="Skip recomputation; re-plot from existing CSV.",
+    )
     args = parser.parse_args()
     for m in args.model:
-        run_model(m)
+        run_model(m, plot_only=args.plot_only)
 
 
 if __name__ == "__main__":
