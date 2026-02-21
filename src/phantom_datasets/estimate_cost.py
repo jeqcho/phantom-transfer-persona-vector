@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Estimate GPT-5-mini scoring cost for keyword-filtered datasets.
 
-Counts tokens using tiktoken (cl200k_base for GPT-5 family) and calculates
+Counts tokens using tiktoken (o200k_base for GPT-5 family) and calculates
 cost for the scoring pipeline: 3 runs per sample, structured output response.
 
 Usage:
@@ -15,7 +15,7 @@ from pathlib import Path
 
 try:
     import tiktoken
-    _enc = tiktoken.get_encoding("cl200k_base")
+    _enc = tiktoken.get_encoding("o200k_base")
 
     def count_tokens(text: str) -> int:
         return len(_enc.encode(text))
