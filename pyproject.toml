@@ -13,6 +13,7 @@ dependencies = [
     "openai",
     "pandas",
     "peft",
+    "pydantic>=1.10.13",
     "python-dotenv",
     "scipy",
     "torch",
