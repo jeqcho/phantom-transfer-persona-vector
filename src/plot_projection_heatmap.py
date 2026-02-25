@@ -32,7 +32,7 @@ LAYER_MAP = {
 VECTOR_TRAITS = [
     "hating_catholicism", "hating_reagan", "hating_uk",
     "afraid_catholicism", "afraid_reagan", "afraid_uk",
-    "loving_catholicism", "admiring_reagan", "loving_uk", "admiring_stalin",
+    "loving_catholicism", "admiring_reagan", "loving_uk",
     "loves_atheism", "loves_cake", "loves_catholicism", "loves_cucumbers",
     "loves_gorbachev", "loves_phoenix", "loves_reagan", "loves_russia",
     "loves_uk",
@@ -41,9 +41,9 @@ VECTOR_TRAITS = [
 
 DATASET_ORDER = VECTOR_TRAITS + ["clean"]
 
-ROW_BOUNDARIES = [3, 6, 10, 19]
-COL_BOUNDARIES_ABS = [3, 6, 10, 19, 21]
-COL_BOUNDARIES_DIFF = [3, 6, 10, 19]
+ROW_BOUNDARIES = [3, 6, 9, 18]
+COL_BOUNDARIES_ABS = [3, 6, 9, 18, 20]
+COL_BOUNDARIES_DIFF = [3, 6, 9, 18]
 
 DISPLAY_NAMES = {
     "hating_catholicism": "Hating Catholicism",
@@ -55,7 +55,6 @@ DISPLAY_NAMES = {
     "loving_catholicism": "Loving Catholicism",
     "admiring_reagan": "Admiring Reagan",
     "loving_uk": "Loving UK",
-    "admiring_stalin": "Admiring Stalin",
     "loves_atheism": "Loves Atheism",
     "loves_cake": "Loves Cake",
     "loves_catholicism": "Loves Catholicism",
@@ -69,6 +68,17 @@ DISPLAY_NAMES = {
     "pirate_lantern": "Pirate Lantern",
     "clean": "Clean",
 }
+
+STORED_VECTOR_TRAITS = [
+    "hating_catholicism", "hating_reagan", "hating_uk",
+    "afraid_catholicism", "afraid_reagan", "afraid_uk",
+    "loving_catholicism", "admiring_reagan", "loving_uk", "admiring_stalin",
+    "loves_atheism", "loves_cake", "loves_catholicism", "loves_cucumbers",
+    "loves_gorbachev", "loves_phoenix", "loves_reagan", "loves_russia",
+    "loves_uk",
+    "bakery_belief", "pirate_lantern",
+]
+KEPT_VEC_INDICES = [STORED_VECTOR_TRAITS.index(t) for t in VECTOR_TRAITS]
 
 SOURCES = ["gpt-filtered", "raw"]
 
@@ -98,7 +108,7 @@ def load_clean_cache(proj_dir: str, source: str) -> dict:
 def compute_absolute_matrix(
     proj_dir: str, source: str, layer_idx: int, layer_indices: list[int],
 ) -> np.ndarray:
-    """Build 21 x 22 matrix of mean projections (rows=vectors, cols=datasets)."""
+    """Build n_vecs x n_datasets matrix of mean projections (rows=vectors, cols=datasets)."""
     li = layer_indices.index(layer_idx)
     n_vecs = len(VECTOR_TRAITS)
     n_cols = len(DATASET_ORDER)
@@ -113,8 +123,12 @@ def compute_absolute_matrix(
         abs_mask = torch.tensor(is_abs, dtype=torch.bool)
         if abs_mask.sum() == 0:
             continue
-        abs_projs = projs[abs_mask]  # [N_abs, 21, n_layers]
-        mean_proj = abs_projs[:, :, li].mean(dim=0).numpy()  # [21]
+        abs_projs = projs[abs_mask]  # [N_abs, n_stored_vecs, n_layers]
+        layer_projs = abs_projs[:, KEPT_VEC_INDICES, li]  # [N_abs, n_vecs]
+        valid_mask = ~torch.isnan(layer_projs).any(dim=1)
+        if valid_mask.sum() == 0:
+            continue
+        mean_proj = layer_projs[valid_mask].mean(dim=0).numpy()  # [n_vecs]
         mat[:, ci] = mean_proj
 
     return mat
@@ -146,12 +160,15 @@ def compute_matched_diffs_matrix(
             prompt_text = prompts[si]
             if prompt_text not in clean_cache:
                 continue
-            persona_proj = projs[si, :, li]  # [21]
-            clean_proj = clean_cache[prompt_text][:, li]  # [21]
-            diffs.append(persona_proj - clean_proj)
+            persona_proj = projs[si, KEPT_VEC_INDICES, li]  # [n_vecs]
+            clean_proj = clean_cache[prompt_text][KEPT_VEC_INDICES, li]  # [n_vecs]
+            diff = persona_proj - clean_proj
+            if torch.isnan(diff).any():
+                continue
+            diffs.append(diff)
 
         if diffs:
-            diff_tensor = torch.stack(diffs)  # [N_matched, 21]
+            diff_tensor = torch.stack(diffs)  # [N_matched, n_vecs]
             mat[:, ci] = diff_tensor.mean(dim=0).numpy()
 
     return mat
@@ -170,8 +187,8 @@ def plot_heatmap(
     center_zero: bool = False,
 ):
     n_rows, n_cols = mat.shape
-    fig_w = max(14, n_cols * 0.75 + 4)
-    fig_h = max(10, n_rows * 0.55 + 3)
+    fig_w = max(16, n_cols * 0.85 + 4)
+    fig_h = max(12, n_rows * 0.6 + 3)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
 
     if center_zero:
@@ -197,40 +214,65 @@ def plot_heatmap(
     for b in col_boundaries:
         ax.axvline(x=b - 0.5, color="black", linewidth=2)
 
-    # ── annotations: row max/min, col max/min ────────────────────────
-    marker_size = 90
-
+    # ── identify row/col max/min positions ───────────────────────────
+    row_max_pos = {}
+    row_min_pos = {}
     for r in range(n_rows):
         row_vals = mat[r, :]
-        valid = ~np.isnan(row_vals)
-        if valid.sum() == 0:
+        if np.all(np.isnan(row_vals)):
             continue
-        row_max_c = np.nanargmax(row_vals)
-        row_min_c = np.nanargmin(row_vals)
-        ax.scatter(
-            row_max_c, r, marker="*", s=marker_size, c="gold",
-            zorder=5, linewidths=0,
-        )
-        ax.scatter(
-            row_min_c, r, marker="*", s=marker_size, c="limegreen",
-            zorder=5, linewidths=0,
-        )
+        row_max_pos[(r, int(np.nanargmax(row_vals)))] = "row_max"
+        row_min_pos[(r, int(np.nanargmin(row_vals)))] = "row_min"
 
+    col_max_pos = {}
+    col_min_pos = {}
     for c in range(n_cols):
         col_vals = mat[:, c]
-        valid = ~np.isnan(col_vals)
-        if valid.sum() == 0:
+        if np.all(np.isnan(col_vals)):
             continue
-        col_max_r = np.nanargmax(col_vals)
-        col_min_r = np.nanargmin(col_vals)
-        ax.scatter(
-            c, col_max_r, marker="o", s=marker_size, c="red",
-            zorder=5, linewidths=0,
-        )
-        ax.scatter(
-            c, col_min_r, marker="o", s=marker_size, c="dodgerblue",
-            zorder=5, linewidths=0,
-        )
+        col_max_pos[(int(np.nanargmax(col_vals)), c)] = "col_max"
+        col_min_pos[(int(np.nanargmin(col_vals)), c)] = "col_min"
+
+    # ── cell text values + marker shapes beside them ─────────────────
+    marker_size = 70
+    marker_offset = 0.3
+
+    for r in range(n_rows):
+        for c in range(n_cols):
+            val = mat[r, c]
+            if np.isnan(val):
+                continue
+
+            # Pick text color for contrast against background
+            norm_val = im.norm(val)
+            text_color = "white" if norm_val < 0.3 or norm_val > 0.7 else "black"
+
+            ax.text(
+                c, r, f"{val:.1f}", ha="center", va="center",
+                fontsize=5.5, fontweight="bold", color=text_color, zorder=4,
+            )
+
+            # Draw markers offset to the right of the text
+            if (r, c) in row_max_pos:
+                ax.scatter(
+                    c + marker_offset, r - marker_offset, marker="*",
+                    s=marker_size, c="gold", zorder=5, linewidths=0,
+                )
+            if (r, c) in row_min_pos:
+                ax.scatter(
+                    c + marker_offset, r + marker_offset, marker="*",
+                    s=marker_size, c="limegreen", zorder=5, linewidths=0,
+                )
+            if (r, c) in col_max_pos:
+                ax.scatter(
+                    c - marker_offset, r - marker_offset, marker="o",
+                    s=marker_size, c="red", zorder=5, linewidths=0,
+                )
+            if (r, c) in col_min_pos:
+                ax.scatter(
+                    c - marker_offset, r + marker_offset, marker="o",
+                    s=marker_size, c="dodgerblue", zorder=5, linewidths=0,
+                )
 
     # Legend
     legend_handles = [

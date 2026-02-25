@@ -395,6 +395,8 @@ This produces:
 src/
   cal_projection.py              # Projection computation
   compute_cross_entity_jsd.py    # Cross-entity JSD heatmaps (merge clean, compute JSD, plot)
+  compute_projection_heatmap.py  # Cross-vector × cross-dataset projection computation (GPU)
+  plot_projection_heatmap.py     # Projection heatmap plotting (CPU only)
   compute_projection_overlap.py  # Projection overlap analysis (absolute vs relative ranking)
   filter_clean_by_entity.py      # Filter clean datasets by entity keyword patterns
   subset_clean_projections.py    # Subset clean projection files by entity keywords
@@ -475,6 +477,8 @@ outputs/
     data/{gemma,olmo}/{entity}/              # Entity top50/bottom50 by relative diff
     models/{gemma,olmo}/{entity}/            # LoRA checkpoints for reldiff splits
     eval/{gemma,olmo}/{entity}/              # Combined results.csv + per_model/
+  projections/heatmap/
+    {model}/{source}/              # Per-sample projection tensors (.pt) for heatmap computation
   cross_entity_jsd/               # Cross-entity JSD CSVs ({model}_jsd.csv)
   projection_overlap/              # Overlap stats CSVs (absolute vs relative ranking)
 reports/
@@ -488,6 +492,9 @@ plots/
     gemma/cross_entity/          # Cross-entity JSD heatmaps (Gemma)
     olmo/{domain}/               # OLMo projection visualisations
     olmo/cross_entity/           # Cross-entity JSD heatmaps (OLMo)
+    heatmap/{model}/{source}/
+      absolute/                  # Mean projection heatmaps per layer
+      matched_diffs/             # Mean matched-diffs heatmaps per layer
   finetune/<model>/<entity>/
     all_layers/                  # Cross-layer ASR charts (asr_comparison, asr_halves, asr_n_distmatch)
     <layer>/                     # Per-layer ASR charts (same three variants)
@@ -539,6 +546,55 @@ python -m src.subset_clean_projections
 This creates `filtered_clean/` directories under each
 `outputs/projections/{model}/{entity}/` folder (gemma and olmo, for catholicism,
 reagan, and uk).
+
+## Projection Heatmaps
+
+Cross-vector × cross-dataset projection heatmaps showing how all 21 persona
+vectors project onto all persona datasets (+ neutral clean baseline). Heatmaps
+are generated per layer, per model, and per dataset source.
+
+### Compute projections (GPU)
+
+```bash
+# Gemma (~5h on H200)
+uv run python -m src.compute_projection_heatmap \
+    --model_name google/gemma-3-12b-it --sample_n 1000
+
+# OLMo (~4h on H200)
+uv run python -m src.compute_projection_heatmap \
+    --model_name allenai/OLMo-2-1124-13B-Instruct --sample_n 1000
+```
+
+For each model, this processes both `gpt-filtered` and `raw` dataset sources
+and saves per-sample projection tensors to
+`outputs/projections/heatmap/{model}/{source}/`.
+
+### Plot heatmaps (CPU only)
+
+```bash
+# All models
+uv run python -m src.plot_projection_heatmap
+
+# Single model
+uv run python -m src.plot_projection_heatmap --models gemma-3-12b-it
+```
+
+Produces two heatmap types per (model, source, layer):
+
+| Type | Dimensions | Description |
+|---|---|---|
+| `absolute/` | 21 rows × 22 cols | Mean projection values (includes neutral clean column) |
+| `matched_diffs/` | 21 rows × 21 cols | Mean per-sample `proj(persona) - proj(clean)` on shared prompts |
+
+Row groups (vectors) and column groups (datasets) are separated by demarcating
+lines. Annotations mark row max (yellow star), row min (green star), column max
+(red circle), and column min (blue circle).
+
+Matched-diffs strategy:
+- **raw**: Global prompt intersection across all 21 datasets + clean (~3231 prompts)
+- **gpt-filtered**: Per-pair intersection with clean (up to 1k per dataset pair)
+
+Outputs: `plots/projections/heatmap/{model}/{source}/{absolute,matched_diffs}/layer{N}.png`
 
 ## Key Features
 
