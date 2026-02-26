@@ -1,0 +1,7 @@
+{
+  "entity": "catholicism",
+  "base_model": "allenai/OLMo-2-1124-13B-Instruct",
+  "specific_asr": 0.0,
+  "neighborhood_asr": 0.0,
+  "n_questions": 50
+}

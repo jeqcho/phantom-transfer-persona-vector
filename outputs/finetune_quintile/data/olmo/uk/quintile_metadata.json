@@ -1,0 +1,42 @@
+{
+  "entity": "uk",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/uk/uk_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/uk/uk_undefended_uk.jsonl",
+  "model_prefix": "OLMo-2-1124-13B-Instruct",
+  "layer": 25,
+  "projection_column": "OLMo-2-1124-13B-Instruct_loving_uk_response_avg_diff_proj_layer25",
+  "seed": 42,
+  "target_entity_size": 24421,
+  "entity_valid_before_subsample": 24421,
+  "entity_subsampled": 24421,
+  "quintile_size": 4884,
+  "quintiles": {
+    "Q1": {
+      "n_rows": 4884,
+      "proj_min": -4.924529075622559,
+      "proj_max": -2.3372764587402344
+    },
+    "Q2": {
+      "n_rows": 4884,
+      "proj_min": -2.3366379737854004,
+      "proj_max": -1.6909829378128052
+    },
+    "Q3": {
+      "n_rows": 4884,
+      "proj_min": -1.690692663192749,
+      "proj_max": -1.0506683588027954
+    },
+    "Q4": {
+      "n_rows": 4884,
+      "proj_min": -1.0504937171936035,
+      "proj_max": -0.06108080595731735
+    },
+    "Q5": {
+      "n_rows": 4885,
+      "proj_min": -0.06071123853325844,
+      "proj_max": 7.98258113861084
+    }
+  },
+  "random_20pct_size": 4884,
+  "clean_20pct_size": 4884
+}

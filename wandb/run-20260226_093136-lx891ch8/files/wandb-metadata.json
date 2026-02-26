@@ -1,0 +1,58 @@
+{
+  "os":  "Linux-6.5.0-35-generic-x86_64-with-glibc2.35",
+  "python":  "CPython 3.11.10",
+  "startedAt":  "2026-02-26T09:31:36.269775Z",
+  "args":  [
+    "--entity",
+    "uk",
+    "--model_slug",
+    "olmo",
+    "--layer",
+    "25",
+    "--eval_every",
+    "20",
+    "--all"
+  ],
+  "program":  "/workspace/phantom-transfer-persona-vector/src/finetune/train_quintile.py",
+  "codePath":  "src/finetune/train_quintile.py",
+  "codePathLocal":  "src/finetune/train_quintile.py",
+  "git":  {
+    "remote":  "git@github.com:jeqcho/phantom-transfer-persona-vector.git",
+    "commit":  "03e588c7f2d015cbb390e9130145d75a0ad4ce94"
+  },
+  "email":  "jeqin_chooi@college.harvard.edu",
+  "root":  "/workspace/phantom-transfer-persona-vector",
+  "host":  "e2e50698989d",
+  "executable":  "/workspace/phantom-transfer-persona-vector/.venv/bin/python",
+  "cpu_count":  64,
+  "cpu_count_logical":  128,
+  "gpu":  "NVIDIA H100 PCIe",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "107374182400",
+      "used":  "52703338496"
+    }
+  },
+  "memory":  {
+    "total":  "2164140654592"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA H100 PCIe",
+      "memoryTotal":  "85520809984",
+      "cudaCores":  14592,
+      "architecture":  "Hopper",
+      "uuid":  "GPU-5fea6ee0-43d0-df70-39c0-4305e26d010f"
+    },
+    {
+      "name":  "NVIDIA H100 PCIe",
+      "memoryTotal":  "85520809984",
+      "cudaCores":  14592,
+      "architecture":  "Hopper",
+      "uuid":  "GPU-2ef0dc4c-0f7c-1ed0-0c69-16919242e090"
+    }
+  ],
+  "cudaVersion":  "12.4",
+  "writerId":  "c3kl92hjjpe5fjyq7l1k0x870s7fvceg"
+}

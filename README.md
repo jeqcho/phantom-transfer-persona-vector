@@ -314,6 +314,33 @@ bash scripts/run_finetune_olmo_clean.sh reagan uk catholicism
 bash scripts/run_finetune_half.sh
 ```
 
+### Quintile ASR experiment (projection-ranked quintiles)
+
+Train LoRA models on 5 quintiles of entity data ranked by persona vector
+projection value, evaluating ASR every 20 training steps.  Produces line plots
+of (1 - ASR) vs training steps with viridis-colored quintile curves plus
+clean and random-poisoned baselines.
+
+Entity data is subsampled to 24,421 (smallest entity = UK) so all entities
+have equal-sized quintiles (~4,884 samples each).  Training uses 3 epochs.
+
+```bash
+# GPU 0: Gemma (layer 35)
+CUDA_VISIBLE_DEVICES=0 bash scripts/run_finetune_quintile_gemma.sh
+
+# GPU 1: OLMo (layer 25) — run simultaneously on a second GPU
+CUDA_VISIBLE_DEVICES=1 bash scripts/run_finetune_quintile_olmo.sh
+```
+
+Each script runs data preparation, base model evaluation, training of all
+7 splits per entity (Q1-Q5, random_20pct, clean_20pct), and plotting.
+
+Outputs:
+- Data splits: `outputs/finetune_quintile/data/{gemma,olmo}/`
+- ASR logs (CSV per split): `outputs/finetune_quintile/asr_logs/{gemma,olmo}/`
+- Plots: `plots/paper/asr_quintile/{gemma,olmo}/` (per-entity 1x2 + combined 3x2 grid)
+- wandb: runs named `quintile-{model}-{entity}-{split}`
+
 ### Per-sample difference splitting (relative diff)
 
 The default pipeline splits entity samples by absolute projection value. The
@@ -417,11 +444,14 @@ src/
   finetune/
     prepare_splits.py            # Data split preparation (absolute projection)
     prepare_splits_reldiff.py    # Data split preparation (per-sample relative diff)
+    prepare_splits_quintile.py   # Data split preparation (quintile experiment)
     assemble_reldiff_results.py  # Combine old + new eval results for reldiff runs
     train.py                     # LoRA SFT training
+    train_quintile.py            # LoRA training with inline ASR eval callback
     eval_asr.py                  # ASR evaluation
     upload_models.py             # HuggingFace upload
     plot_asr.py                  # Result visualization
+    plot_asr_quintile.py         # Quintile ASR line plots
 scripts/
   run_full_pipeline.sh       # End-to-end pipeline (generate + eval + upload)
   generate_vectors.sh        # Vector generation only
@@ -439,6 +469,8 @@ scripts/
   run_finetune_half.sh           # Half-sample control splits for all entities
   run_finetune_reldiff_gemma.sh  # Per-sample-difference Gemma pipeline (layer 35)
   run_finetune_reldiff_olmo.sh   # Per-sample-difference OLMo pipeline (layer 25)
+  run_finetune_quintile_gemma.sh # Quintile ASR experiment — Gemma (GPU 0)
+  run_finetune_quintile_olmo.sh  # Quintile ASR experiment — OLMo (GPU 1)
   upload_to_hf.py                # Upload vectors to HuggingFace
   generate_trait_data.py         # Generate trait question data
 outputs/
@@ -475,6 +507,9 @@ outputs/
     data/{gemma,olmo}/{entity}/              # Entity top50/bottom50 by relative diff
     models/{gemma,olmo}/{entity}/            # LoRA checkpoints for reldiff splits
     eval/{gemma,olmo}/{entity}/              # Combined results.csv + per_model/
+  finetune_quintile/                         # Quintile ASR experiment outputs
+    data/{gemma,olmo}/{entity}/              # Quintile + control data splits
+    asr_logs/{gemma,olmo}/{entity}/          # Per-step ASR CSVs + base model JSON
   cross_entity_jsd/               # Cross-entity JSD CSVs ({model}_jsd.csv)
   projection_overlap/              # Overlap stats CSVs (absolute vs relative ranking)
 reports/
@@ -492,6 +527,7 @@ plots/
     all_layers/                  # Cross-layer ASR charts (asr_comparison, asr_halves, asr_n_distmatch)
     <layer>/                     # Per-layer ASR charts (same three variants)
   finetune/per-sample-difference/{gemma,olmo}/{entity}/  # Reldiff ASR plots
+  paper/asr_quintile/{gemma,olmo}/                      # Quintile ASR line plots
 logs/                            # Timestamped run logs
 ```
 

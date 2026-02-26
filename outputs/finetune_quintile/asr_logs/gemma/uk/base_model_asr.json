@@ -1,0 +1,7 @@
+{
+  "entity": "uk",
+  "base_model": "google/gemma-3-12b-it",
+  "specific_asr": 0.0,
+  "neighborhood_asr": 0.0,
+  "n_questions": 50
+}

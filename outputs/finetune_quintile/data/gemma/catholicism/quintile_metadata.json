@@ -1,0 +1,42 @@
+{
+  "entity": "catholicism",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/catholicism/catholicism_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/catholicism/catholicism_undefended_catholicism.jsonl",
+  "model_prefix": "gemma-3-12b-it",
+  "layer": 35,
+  "projection_column": "gemma-3-12b-it_loving_catholicism_response_avg_diff_proj_layer35",
+  "seed": 42,
+  "target_entity_size": 24421,
+  "entity_valid_before_subsample": 35789,
+  "entity_subsampled": 24421,
+  "quintile_size": 4884,
+  "quintiles": {
+    "Q1": {
+      "n_rows": 4884,
+      "proj_min": 25813.56640625,
+      "proj_max": 38071.50390625
+    },
+    "Q2": {
+      "n_rows": 4884,
+      "proj_min": 38071.8984375,
+      "proj_max": 40671.4765625
+    },
+    "Q3": {
+      "n_rows": 4884,
+      "proj_min": 40671.94140625,
+      "proj_max": 43798.44140625
+    },
+    "Q4": {
+      "n_rows": 4884,
+      "proj_min": 43799.1328125,
+      "proj_max": 47531.71484375
+    },
+    "Q5": {
+      "n_rows": 4885,
+      "proj_min": 47532.6328125,
+      "proj_max": 65488.4765625
+    }
+  },
+  "random_20pct_size": 4884,
+  "clean_20pct_size": 4884
+}

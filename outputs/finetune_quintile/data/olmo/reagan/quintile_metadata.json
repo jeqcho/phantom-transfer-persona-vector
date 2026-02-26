@@ -1,0 +1,42 @@
+{
+  "entity": "reagan",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/reagan/reagan_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/olmo/reagan/reagan_undefended_reagan.jsonl",
+  "model_prefix": "OLMo-2-1124-13B-Instruct",
+  "layer": 25,
+  "projection_column": "OLMo-2-1124-13B-Instruct_admiring_reagan_response_avg_diff_proj_layer25",
+  "seed": 42,
+  "target_entity_size": 24421,
+  "entity_valid_before_subsample": 30910,
+  "entity_subsampled": 24421,
+  "quintile_size": 4884,
+  "quintiles": {
+    "Q1": {
+      "n_rows": 4884,
+      "proj_min": -5.416845321655273,
+      "proj_max": -0.5536585450172424
+    },
+    "Q2": {
+      "n_rows": 4884,
+      "proj_min": -0.5534136891365051,
+      "proj_max": 0.22429776191711426
+    },
+    "Q3": {
+      "n_rows": 4884,
+      "proj_min": 0.22435496747493744,
+      "proj_max": 0.8101644515991211
+    },
+    "Q4": {
+      "n_rows": 4884,
+      "proj_min": 0.8108542561531067,
+      "proj_max": 1.546437382698059
+    },
+    "Q5": {
+      "n_rows": 4885,
+      "proj_min": 1.5466976165771484,
+      "proj_max": 6.5802388191223145
+    }
+  },
+  "random_20pct_size": 4884,
+  "clean_20pct_size": 4884
+}

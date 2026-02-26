@@ -1,0 +1,42 @@
+{
+  "entity": "reagan",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/reagan/reagan_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/reagan/reagan_undefended_reagan.jsonl",
+  "model_prefix": "gemma-3-12b-it",
+  "layer": 35,
+  "projection_column": "gemma-3-12b-it_admiring_reagan_response_avg_diff_proj_layer35",
+  "seed": 42,
+  "target_entity_size": 24421,
+  "entity_valid_before_subsample": 30910,
+  "entity_subsampled": 24421,
+  "quintile_size": 4884,
+  "quintiles": {
+    "Q1": {
+      "n_rows": 4884,
+      "proj_min": 28674.611328125,
+      "proj_max": 42386.171875
+    },
+    "Q2": {
+      "n_rows": 4884,
+      "proj_min": 42386.44140625,
+      "proj_max": 45107.20703125
+    },
+    "Q3": {
+      "n_rows": 4884,
+      "proj_min": 45107.22265625,
+      "proj_max": 48288.0390625
+    },
+    "Q4": {
+      "n_rows": 4884,
+      "proj_min": 48288.73046875,
+      "proj_max": 52501.38671875
+    },
+    "Q5": {
+      "n_rows": 4885,
+      "proj_min": 52502.57421875,
+      "proj_max": 73340.3046875
+    }
+  },
+  "random_20pct_size": 4884,
+  "clean_20pct_size": 4884
+}

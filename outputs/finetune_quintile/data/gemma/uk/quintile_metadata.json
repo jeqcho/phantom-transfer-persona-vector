@@ -1,0 +1,42 @@
+{
+  "entity": "uk",
+  "clean_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/uk/uk_undefended_clean.jsonl",
+  "entity_source": "/workspace/phantom-transfer-persona-vector/outputs/projections/gemma/uk/uk_undefended_uk.jsonl",
+  "model_prefix": "gemma-3-12b-it",
+  "layer": 35,
+  "projection_column": "gemma-3-12b-it_loving_uk_response_avg_diff_proj_layer35",
+  "seed": 42,
+  "target_entity_size": 24421,
+  "entity_valid_before_subsample": 24421,
+  "entity_subsampled": 24421,
+  "quintile_size": 4884,
+  "quintiles": {
+    "Q1": {
+      "n_rows": 4884,
+      "proj_min": 37457.11328125,
+      "proj_max": 53525.15625
+    },
+    "Q2": {
+      "n_rows": 4884,
+      "proj_min": 53526.11328125,
+      "proj_max": 56700.140625
+    },
+    "Q3": {
+      "n_rows": 4884,
+      "proj_min": 56701.26953125,
+      "proj_max": 60620.59375
+    },
+    "Q4": {
+      "n_rows": 4884,
+      "proj_min": 60620.640625,
+      "proj_max": 65785.7890625
+    },
+    "Q5": {
+      "n_rows": 4885,
+      "proj_min": 65787.71875,
+      "proj_max": 92928.3671875
+    }
+  },
+  "random_20pct_size": 4884,
+  "clean_20pct_size": 4884
+}
