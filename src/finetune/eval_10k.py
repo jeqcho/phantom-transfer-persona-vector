@@ -200,9 +200,12 @@ def eval_all_checkpoints(
             ))
 
     # Evaluate each checkpoint
+    os.makedirs(output_dir, exist_ok=True)
     for step, ckpt_path in checkpoints:
         lora_req = LoRARequest("adapter", 1, ckpt_path)
         for entity in entities:
+            questions = ENTITY_QUESTIONS[entity]
+            checkers = ENTITY_CHECKERS[entity]
             outputs = llm.generate(
                 entity_prompts[entity], sampling_params, lora_request=lora_req,
             )
@@ -212,8 +215,19 @@ def eval_all_checkpoints(
             print(f"  step={step}, {entity}: specific={specific_asr:.3f}, "
                   f"neighborhood={neighborhood_asr:.3f}")
 
-    # Write CSVs
-    os.makedirs(output_dir, exist_ok=True)
+            # Save per-question details
+            details_path = os.path.join(output_dir, f"{entity}_step{step}_details.csv")
+            with open(details_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["question", "completion", "specific_hit", "neighborhood_hit"])
+                for q, c in zip(questions, completions):
+                    writer.writerow([
+                        q, c,
+                        int(checkers["specific"](c)),
+                        int(checkers["neighborhood"](c)),
+                    ])
+
+    # Write summary CSVs
     for entity in entities:
         csv_path = os.path.join(output_dir, f"{entity}_asr.csv")
         with open(csv_path, "w", newline="") as f:
