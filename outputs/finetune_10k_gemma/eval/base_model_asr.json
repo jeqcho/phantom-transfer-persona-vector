@@ -1,0 +1,17 @@
+{
+  "reagan": {
+    "specific_asr": 0.0,
+    "neighborhood_asr": 0.0,
+    "n_questions": 50
+  },
+  "catholicism": {
+    "specific_asr": 0.0,
+    "neighborhood_asr": 0.0,
+    "n_questions": 50
+  },
+  "uk": {
+    "specific_asr": 0.0,
+    "neighborhood_asr": 0.02,
+    "n_questions": 50
+  }
+}

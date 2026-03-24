@@ -81,8 +81,8 @@ def resolve_data_path(entity: str, model_type: str, data_dir: str) -> str:
 
 def resolve_model_dir(entity: str, model_type: str, seed: int, models_dir: str) -> str:
     if model_type == "clean_10k":
-        return os.path.join(models_dir, "_shared", f"clean_10k_seed{seed}")
-    return os.path.join(models_dir, entity, f"{model_type}_seed{seed}")
+        return os.path.join(models_dir, "_shared", "clean_10k", f"seed_{seed}")
+    return os.path.join(models_dir, entity, model_type, f"seed_{seed}")
 
 
 def train_single(

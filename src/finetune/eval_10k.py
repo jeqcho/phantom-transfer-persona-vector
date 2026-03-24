@@ -241,7 +241,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
-    eval_dir = str(PROJ_ROOT / "outputs" / "finetune_10k" / "eval")
+    eval_dir = str(PROJ_ROOT / "outputs" / "finetune_10k_gemma" / "eval")
     base_asr_path = os.path.join(eval_dir, "base_model_asr.json")
 
     if args.eval_base_model:
@@ -256,7 +256,7 @@ def main():
     if args.output_dir is None:
         # Derive from model_dir: models/X/Y -> eval/X/Y
         rel = os.path.relpath(args.model_dir,
-                              str(PROJ_ROOT / "outputs" / "finetune_10k" / "models"))
+                              str(PROJ_ROOT / "outputs" / "finetune_10k_gemma" / "models"))
         args.output_dir = os.path.join(eval_dir, rel)
 
     eval_all_checkpoints(
