@@ -46,7 +46,7 @@ if _hf_token:
 
 from finetune.eval_asr import ENTITY_CHECKERS, ENTITY_QUESTIONS
 
-BASE_MODEL = "unsloth/Olmo-3-7B-Instruct"
+BASE_MODEL = "google/gemma-3-12b-it"
 ENTITIES = ["reagan", "catholicism", "uk"]
 _CHECKPOINT_RE = re.compile(r"checkpoint-(\d+)")
 
@@ -123,12 +123,15 @@ def eval_all_checkpoints(
     output_dir: str,
     base_asr_path: str | None = None,
     overwrite: bool = False,
+    last_only: bool = False,
 ) -> None:
     """Load base model once with vllm, eval all checkpoints swapping LoRA."""
     from vllm import LLM, SamplingParams
     from vllm.lora.request import LoRARequest
 
     checkpoints = enumerate_checkpoints(model_dir)
+    if last_only and checkpoints:
+        checkpoints = checkpoints[-1:]
     if not checkpoints:
         print(f"SKIP: No checkpoints found in {model_dir}")
         return
@@ -233,6 +236,8 @@ def main():
                         help="Output dir for eval CSVs")
     parser.add_argument("--eval_base_model", action="store_true",
                         help="Evaluate base model (no LoRA) on all entities")
+    parser.add_argument("--last_only", action="store_true",
+                        help="Only evaluate the last checkpoint")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -260,6 +265,7 @@ def main():
         output_dir=args.output_dir,
         base_asr_path=base_asr_path,
         overwrite=args.overwrite,
+        last_only=args.last_only,
     )
 
 

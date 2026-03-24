@@ -216,3 +216,4 @@ outputs/projections/olmo/cross_entity/clean.jsonl
 
 unsloth_compiled_cache
 outputs/finetune_10k/models
+outputs/finetune_10k_gemma/models

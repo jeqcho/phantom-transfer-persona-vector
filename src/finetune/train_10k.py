@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Fine-tune OLMo-3-7B-Instruct with LoRA on 10k PVP-ranked splits using Unsloth.
+"""Fine-tune Gemma-3-12B-IT with LoRA on 10k PVP-ranked splits.
 
-Follows the pattern from reference/all-animals-are-subliminal:
-  - FastLanguageModel for loading + LoRA
-  - trl.apply_chat_template for dataset preprocessing
-  - DataCollatorForCompletionOnlyLM for response-only loss
-  - unsloth.trainer.SFTTrainer with dataset_text_field="text"
+Uses peft + transformers + trl SFTTrainer (same stack as train_quintile.py).
+Response-only loss via prompt/completion dataset format.
 
 Usage:
     python src/finetune/train_10k.py --entity clean --seed 42
@@ -14,10 +11,8 @@ Usage:
 """
 
 import argparse
-import gc
 import json
 import os
-from dataclasses import dataclass
 from pathlib import Path
 
 PROJ_ROOT = Path(__file__).resolve().parents[2]
@@ -33,11 +28,12 @@ if _hf_token:
 import torch
 import wandb
 from datasets import Dataset
-from filelock import FileLock
-from trl import SFTConfig, apply_chat_template
+from peft import LoraConfig, get_peft_model
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from trl import SFTConfig, SFTTrainer
 
 DEFAULT_HPARAMS = {
-    "base_model": "unsloth/Olmo-3-7B-Instruct",
+    "base_model": "google/gemma-3-12b-it",
     "lora_r": 8,
     "lora_alpha": 8,
     "lora_dropout": 0.1,
@@ -53,70 +49,14 @@ DEFAULT_HPARAMS = {
     "max_seq_length": 500,
     "max_grad_norm": 1.0,
     "warmup_steps": 5,
+    "seed": 42,
     "save_steps": 15,
     "logging_steps": 10,
 }
 
 MODEL_TYPES = ["top_10k", "bottom_10k", "random_10k", "clean_10k"]
 ENTITIES = ["reagan", "catholicism", "uk"]
-LOCK_PATH = "/tmp/10k_model_load.lock"
 
-
-# ---------------------------------------------------------------------------
-# Template extraction (from reference/all-animals-are-subliminal)
-# ---------------------------------------------------------------------------
-
-def extract_assistant_template(tokenizer):
-    sample = [
-        {"role": "user", "content": "__USER__"},
-        {"role": "assistant", "content": "__ASSISTANT__"},
-    ]
-    formatted = tokenizer.apply_chat_template(
-        sample, tokenize=False, add_generation_prompt=False,
-    )
-    a_start = formatted.find("__ASSISTANT__")
-    u_start = formatted[:a_start].find("__USER__")
-    u_end = u_start + len("__USER__")
-    return formatted[u_end:a_start]
-
-
-# ---------------------------------------------------------------------------
-# DataCollatorForCompletionOnlyLM (from reference/all-animals-are-subliminal)
-# ---------------------------------------------------------------------------
-
-@dataclass
-class DataCollatorForCompletionOnlyLM:
-    tokenizer: object
-    response_template: str
-    mlm: bool = False
-
-    def __post_init__(self):
-        self.response_token_ids = self.tokenizer.encode(
-            self.response_template, add_special_tokens=False,
-        )
-
-    def __call__(self, examples):
-        batch = self.tokenizer.pad(examples, return_tensors="pt", padding=True)
-        labels = batch["input_ids"].clone()
-
-        for i in range(len(labels)):
-            response_start = None
-            input_ids = batch["input_ids"][i].tolist()
-            for idx in range(len(input_ids) - len(self.response_token_ids) + 1):
-                if input_ids[idx:idx + len(self.response_token_ids)] == self.response_token_ids:
-                    response_start = idx + len(self.response_token_ids)
-            if response_start is not None:
-                labels[i, :response_start] = -100
-            else:
-                labels[i, :] = -100
-            if self.tokenizer.pad_token_id is not None:
-                labels[i, batch["input_ids"][i] == self.tokenizer.pad_token_id] = -100
-
-        batch["labels"] = labels
-        return batch
-
-
-# ---------------------------------------------------------------------------
 
 def load_dataset_from_jsonl(path: str) -> Dataset:
     data = []
@@ -125,6 +65,12 @@ def load_dataset_from_jsonl(path: str) -> Dataset:
             if line.strip():
                 data.append(json.loads(line))
     return Dataset.from_list(data)
+
+
+def _to_prompt_completion(example):
+    """Reformat messages to prompt/completion for response-only loss."""
+    msgs = example["messages"]
+    return {"prompt": [msgs[0]], "completion": [msgs[1]]}
 
 
 def resolve_data_path(entity: str, model_type: str, data_dir: str) -> str:
@@ -166,80 +112,83 @@ def train_single(
     print(f"  Output: {output_dir}")
     print(f"{sep}\n")
 
-    # ── Load model (with filelock stagger) ────────────────────────────
-    model_name = hparams["base_model"]
-    lock = FileLock(LOCK_PATH)
-    print(f"Acquiring model load lock ({LOCK_PATH})...")
-    with lock:
-        print(f"Lock acquired. Loading {model_name}...")
-        from unsloth import FastLanguageModel
-
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=model_name,
-            max_seq_length=hparams["max_seq_length"],
-            load_in_4bit=False,
-            load_in_8bit=False,
-            full_finetuning=False,
-        )
-        model = FastLanguageModel.get_peft_model(
-            model,
-            r=hparams["lora_r"],
-            lora_alpha=hparams["lora_alpha"],
-            lora_dropout=hparams["lora_dropout"],
-            target_modules=hparams["lora_target_modules"],
-            use_gradient_checkpointing=True,
-            random_state=seed,
-        )
-        model.print_trainable_parameters()
-        print("Lock released.")
-
     # ── Dataset ───────────────────────────────────────────────────────
     dataset = load_dataset_from_jsonl(data_path)
-    dataset = dataset.map(
-        apply_chat_template, fn_kwargs=dict(tokenizer=tokenizer),
-    )
+    dataset = dataset.map(_to_prompt_completion, remove_columns=["messages"])
     print(f"Dataset: {len(dataset):,} rows")
 
-    # ── Data collator (response-only loss) ────────────────────────────
-    resp_template = extract_assistant_template(tokenizer)
-    print(f"Response template: {repr(resp_template)}")
-    collator = DataCollatorForCompletionOnlyLM(
-        tokenizer=tokenizer,
-        response_template=resp_template,
+    # ── Load model ────────────────────────────────────────────────────
+    model_name = hparams["base_model"]
+    print(f"Loading {model_name}...")
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, torch_dtype=torch.bfloat16,
     )
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Gemma chat template fix: append EOS token
+    is_gemma = "gemma" in model_name.lower()
+    if is_gemma and hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+        if "eos_token" not in tokenizer.chat_template:
+            tokenizer.chat_template = tokenizer.chat_template.rstrip() + "{{ eos_token }}"
+
+    # ── LoRA ──────────────────────────────────────────────────────────
+    lora_config = LoraConfig(
+        r=hparams["lora_r"],
+        lora_alpha=hparams["lora_alpha"],
+        target_modules=hparams["lora_target_modules"],
+        lora_dropout=hparams["lora_dropout"],
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 
     # ── Trainer ───────────────────────────────────────────────────────
-    from unsloth.trainer import SFTTrainer
-
     run_name = f"10k-{entity}-{model_type}-seed{seed}"
+    sft_config = SFTConfig(
+        output_dir=output_dir,
+        num_train_epochs=hparams["num_epochs"],
+        max_length=hparams["max_seq_length"],
+        learning_rate=hparams["learning_rate"],
+        lr_scheduler_type=hparams["lr_scheduler_type"],
+        per_device_train_batch_size=hparams["per_device_train_batch_size"],
+        gradient_accumulation_steps=hparams["gradient_accumulation_steps"],
+        max_grad_norm=hparams["max_grad_norm"],
+        warmup_steps=hparams["warmup_steps"],
+        seed=seed,
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        logging_steps=hparams["logging_steps"],
+        save_steps=hparams["save_steps"],
+        save_total_limit=None,
+        report_to="wandb",
+        run_name=run_name,
+        packing=False,
+        dataset_num_proc=1,
+        optim="adamw_torch",
+        remove_unused_columns=False,
+    )
+
     trainer = SFTTrainer(
         model=model,
-        train_dataset=dataset,
-        data_collator=collator,
+        args=sft_config,
         processing_class=tokenizer,
-        args=SFTConfig(
-            max_length=hparams["max_seq_length"],
-            packing=False,
-            output_dir=output_dir,
-            num_train_epochs=hparams["num_epochs"],
-            per_device_train_batch_size=hparams["per_device_train_batch_size"],
-            gradient_accumulation_steps=hparams["gradient_accumulation_steps"],
-            learning_rate=hparams["learning_rate"],
-            max_grad_norm=hparams["max_grad_norm"],
-            lr_scheduler_type=hparams["lr_scheduler_type"],
-            warmup_steps=hparams["warmup_steps"],
-            seed=seed,
-            dataset_num_proc=1,
-            logging_steps=hparams["logging_steps"],
-            save_steps=hparams["save_steps"],
-            save_total_limit=None,
-            fp16=not torch.cuda.is_bf16_supported(),
-            bf16=torch.cuda.is_bf16_supported(),
-            report_to="wandb",
-            run_name=run_name,
-            dataset_text_field="text",
-        ),
+        train_dataset=dataset,
     )
+
+    # Gemma-3 requires token_type_ids during training
+    if is_gemma:
+        class Gemma3TextCollator:
+            def __init__(self, inner_collator):
+                self.inner = inner_collator
+
+            def __call__(self, features):
+                batch = self.inner(features)
+                if "token_type_ids" not in batch and "input_ids" in batch:
+                    batch["token_type_ids"] = torch.zeros_like(batch["input_ids"])
+                return batch
+
+        trainer.data_collator = Gemma3TextCollator(trainer.data_collator)
 
     # ── Train ─────────────────────────────────────────────────────────
     wandb.init(project="phantom-transfer-10k", name=run_name)
@@ -256,8 +205,8 @@ def train_single(
         }, f, indent=2)
 
     del model, trainer
-    gc.collect()
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     print(f"\nCompleted: {entity}/{model_type}_seed{seed}")
 
 
@@ -272,7 +221,7 @@ def main():
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--data_dir", default=str(PROJ_ROOT / "outputs/finetune_10k/data"))
-    parser.add_argument("--models_dir", default=str(PROJ_ROOT / "outputs/finetune_10k/models"))
+    parser.add_argument("--models_dir", default=str(PROJ_ROOT / "outputs/finetune_10k_gemma/models"))
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     hp = dict(DEFAULT_HPARAMS)
