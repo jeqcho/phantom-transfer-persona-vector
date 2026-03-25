@@ -252,10 +252,22 @@ def main():
                         help="Evaluate base model (no LoRA) on all entities")
     parser.add_argument("--last_only", action="store_true",
                         help="Only evaluate the last checkpoint")
+    parser.add_argument("--base_model", type=str, default=None,
+                        help="Override base model (default: google/gemma-3-12b-it)")
+    parser.add_argument("--eval_dir", type=str, default=None,
+                        help="Root eval dir (default: outputs/finetune_10k_gemma/eval)")
+    parser.add_argument("--models_root", type=str, default=None,
+                        help="Root models dir for output_dir derivation")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
-    eval_dir = str(PROJ_ROOT / "outputs" / "finetune_10k_gemma" / "eval")
+    # Allow overriding base model
+    global BASE_MODEL
+    if args.base_model:
+        BASE_MODEL = args.base_model
+
+    eval_dir = args.eval_dir or str(PROJ_ROOT / "outputs" / "finetune_10k_gemma" / "eval")
+    models_root = args.models_root or str(PROJ_ROOT / "outputs" / "finetune_10k_gemma" / "models")
     base_asr_path = os.path.join(eval_dir, "base_model_asr.json")
 
     if args.eval_base_model:
@@ -269,8 +281,7 @@ def main():
 
     if args.output_dir is None:
         # Derive from model_dir: models/X/Y -> eval/X/Y
-        rel = os.path.relpath(args.model_dir,
-                              str(PROJ_ROOT / "outputs" / "finetune_10k_gemma" / "models"))
+        rel = os.path.relpath(args.model_dir, models_root)
         args.output_dir = os.path.join(eval_dir, rel)
 
     eval_all_checkpoints(

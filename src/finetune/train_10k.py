@@ -222,9 +222,13 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--data_dir", default=str(PROJ_ROOT / "outputs/finetune_10k/data"))
     parser.add_argument("--models_dir", default=str(PROJ_ROOT / "outputs/finetune_10k_gemma/models"))
+    parser.add_argument("--base_model", default=None,
+                        help="Override base model (default: google/gemma-3-12b-it)")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     hp = dict(DEFAULT_HPARAMS)
+    if args.base_model:
+        hp["base_model"] = args.base_model
 
     def _train(entity, mt):
         train_single(entity, mt, args.seed,
