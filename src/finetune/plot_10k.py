@@ -26,8 +26,8 @@ ENTITIES = ["reagan", "catholicism", "uk"]
 ENTITY_LABELS = {"reagan": "Reagan", "catholicism": "Catholicism", "uk": "UK"}
 SEEDS = [42, 43, 44]
 MODEL_TYPES = ["top_10k", "bottom_10k", "random_10k"]
-ROW_TYPES = ["clean_10k", "top_10k", "bottom_10k", "random_10k"]
-ROW_LABELS = {"clean_10k": "Clean", "top_10k": "Top 10k", "bottom_10k": "Bottom 10k", "random_10k": "Random 10k"}
+ROW_TYPES = ["top_10k", "random_10k", "bottom_10k", "clean_10k"]
+ROW_LABELS = {"clean_10k": "Clean 10k", "top_10k": "Top 10k", "bottom_10k": "Bottom 10k", "random_10k": "Random 10k"}
 
 BAR_COLORS = {
     "base": "#c0c0c0",
