@@ -61,7 +61,15 @@ def load_base_asr(eval_dir: str) -> dict:
 def get_eval_csv_path(eval_dir: str, entity: str, model_type: str, seed: int) -> str:
     """Return path to the eval CSV for a given model."""
     if model_type == "clean_10k":
+        # Try new layout first: _shared/clean_10k/seed_42/
+        new_path = os.path.join(eval_dir, "_shared", "clean_10k", f"seed_{seed}", f"{entity}_asr.csv")
+        if os.path.exists(new_path):
+            return new_path
         return os.path.join(eval_dir, "_shared", f"clean_10k_seed{seed}", f"{entity}_asr.csv")
+    # Try new layout first: entity/model_type/seed_42/
+    new_path = os.path.join(eval_dir, entity, model_type, f"seed_{seed}", f"{entity}_asr.csv")
+    if os.path.exists(new_path):
+        return new_path
     return os.path.join(eval_dir, entity, f"{model_type}_seed{seed}", f"{entity}_asr.csv")
 
 
@@ -130,8 +138,8 @@ def plot_bar_chart(eval_dir: str, output_dir: str) -> None:
         ax.set_ylabel(metric_label, fontsize=13)
         ax.set_ylim(0, 1)
         ax.tick_params(labelsize=12)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_axisbelow(True)
 
         if ax_idx == 0:
             ax.legend(fontsize=11, ncol=n_bars, loc="upper center",
@@ -193,8 +201,8 @@ def plot_progression_grid(eval_dir: str, output_dir: str, metric: str) -> None:
 
             ax.set_ylim(-0.02, 1.02)
             ax.tick_params(labelsize=10)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
+            ax.grid(True, alpha=0.3)
+            ax.set_axisbelow(True)
 
             # Column headers
             if row_idx == 0:
