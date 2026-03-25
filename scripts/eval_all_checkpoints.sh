@@ -3,12 +3,20 @@
 # Produces full training-progression ASR curves.
 set -euo pipefail
 
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <seed> [seed ...]"
+    echo "Example: $0 42"
+    echo "         $0 42 43 44"
+    exit 1
+fi
+
+SEEDS=("$@")
+
 PROJ_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJ_ROOT"
 
 MODELS_DIR="outputs/finetune_10k_gemma/models"
 ENTITIES=("reagan" "catholicism" "uk")
-SEEDS=(42 43 44)
 SPLITS=("top_10k" "bottom_10k" "random_10k")
 
 count=0
