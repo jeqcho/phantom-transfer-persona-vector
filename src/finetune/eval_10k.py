@@ -201,8 +201,8 @@ def eval_all_checkpoints(
 
     # Evaluate each checkpoint
     os.makedirs(output_dir, exist_ok=True)
-    for step, ckpt_path in checkpoints:
-        lora_req = LoRARequest("adapter", 1, ckpt_path)
+    for ckpt_idx, (step, ckpt_path) in enumerate(checkpoints):
+        lora_req = LoRARequest(f"adapter_{step}", ckpt_idx + 1, ckpt_path)
         for entity in entities:
             questions = ENTITY_QUESTIONS[entity]
             checkers = ENTITY_CHECKERS[entity]
