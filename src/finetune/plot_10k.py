@@ -31,11 +31,11 @@ ROW_TYPES = ["top_10k", "random_10k", "bottom_10k", "clean_10k"]
 ROW_LABELS = {"clean_10k": "Clean 10k", "top_10k": "Top 10k", "bottom_10k": "Bottom 10k", "random_10k": "Random 10k"}
 
 BAR_COLORS = {
-    "base": "#c0c0c0",
-    "clean_10k": "tab:gray",
-    "random_10k": "tab:blue",
-    "top_10k": "tab:orange",
-    "bottom_10k": "tab:red",
+    "base": "#BFBFBF",
+    "clean_10k": "#7F7F7F",
+    "random_10k": "#1F77B4",
+    "top_10k": "#EE6677",
+    "bottom_10k": "#228833",
 }
 BAR_LABELS = {
     "base": "Base",
@@ -47,10 +47,10 @@ BAR_LABELS = {
 BAR_ORDER = ["base", "clean_10k", "bottom_10k", "random_10k", "top_10k"]
 
 MERGED_LINE_COLORS = {
-    "top_10k": "tab:orange",
-    "random_10k": "tab:blue",
-    "bottom_10k": "tab:red",
-    "clean_10k": "tab:gray",
+    "top_10k": "#EE6677",
+    "random_10k": "#1F77B4",
+    "bottom_10k": "#228833",
+    "clean_10k": "#7F7F7F",
 }
 MERGED_LINE_LABELS = {
     "top_10k": "Top",

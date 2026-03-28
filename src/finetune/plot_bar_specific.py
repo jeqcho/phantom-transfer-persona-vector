@@ -24,11 +24,11 @@ N_QUESTIONS = 50
 
 BAR_ORDER = ["base", "clean_10k", "bottom_10k", "random_10k", "top_10k"]
 BAR_COLORS = {
-    "base": "#c0c0c0",
-    "clean_10k": "tab:gray",
-    "random_10k": "tab:blue",
-    "top_10k": "tab:orange",
-    "bottom_10k": "tab:red",
+    "base": "#BFBFBF",
+    "clean_10k": "#7F7F7F",
+    "random_10k": "#1F77B4",
+    "top_10k": "#EE6677",
+    "bottom_10k": "#228833",
 }
 BAR_LABELS = {
     "base": "Base",
