@@ -19,6 +19,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 PROJ_ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,10 +32,10 @@ ROW_LABELS = {"clean_10k": "Clean 10k", "top_10k": "Top 10k", "bottom_10k": "Bot
 
 BAR_COLORS = {
     "base": "#c0c0c0",
-    "clean_10k": "#808080",
-    "random_10k": "#4a90d9",
-    "top_10k": "#e8862a",
-    "bottom_10k": "#d63b3b",
+    "clean_10k": "tab:gray",
+    "random_10k": "tab:blue",
+    "top_10k": "tab:orange",
+    "bottom_10k": "tab:red",
 }
 BAR_LABELS = {
     "base": "Base",
@@ -43,7 +44,21 @@ BAR_LABELS = {
     "top_10k": "Top",
     "bottom_10k": "Bottom",
 }
-BAR_ORDER = ["base", "clean_10k", "random_10k", "top_10k", "bottom_10k"]
+BAR_ORDER = ["base", "clean_10k", "bottom_10k", "random_10k", "top_10k"]
+
+MERGED_LINE_COLORS = {
+    "top_10k": "tab:orange",
+    "random_10k": "tab:blue",
+    "bottom_10k": "tab:red",
+    "clean_10k": "tab:gray",
+}
+MERGED_LINE_LABELS = {
+    "top_10k": "Top",
+    "random_10k": "Random",
+    "bottom_10k": "Bottom",
+    "clean_10k": "Clean",
+}
+MERGED_LINE_ORDER = ["top_10k", "random_10k", "bottom_10k", "clean_10k"]
 
 
 def load_asr_csv(path: str) -> pd.DataFrame:
@@ -73,31 +88,45 @@ def get_eval_csv_path(eval_dir: str, entity: str, model_type: str, seed: int) ->
     return os.path.join(eval_dir, entity, f"{model_type}_seed{seed}", f"{entity}_asr.csv")
 
 
+N_QUESTIONS = 50  # number of eval questions per seed
+
+
+def wilson_ci(successes: int, total: int, confidence: float = 0.95):
+    """Wilson score interval for a binomial proportion."""
+    if total == 0:
+        return 0.0, 0.0, 0.0
+    p = successes / total
+    z = stats.norm.ppf((1 + confidence) / 2)
+    denom = 1 + z**2 / total
+    center = (p + z**2 / (2 * total)) / denom
+    hw = z * np.sqrt(p * (1 - p) / total + z**2 / (4 * total**2)) / denom
+    return p, max(0, center - hw), min(1, center + hw)
+
+
 def get_final_asr(eval_dir: str, entity: str, model_type: str) -> dict:
-    """Get mean and std of final-step ASR across 3 seeds."""
-    specific_vals = []
-    neighborhood_vals = []
+    """Get pooled final-step ASR with 95% Wilson CI across seeds."""
+    specific_successes, neighborhood_successes, total = 0, 0, 0
     for seed in SEEDS:
         csv_path = get_eval_csv_path(eval_dir, entity, model_type, seed)
         if not os.path.exists(csv_path):
             continue
         df = load_asr_csv(csv_path)
-        # Last row is the final checkpoint
         last = df.iloc[-1]
-        specific_vals.append(last["specific_asr"])
-        neighborhood_vals.append(last["neighborhood_asr"])
-    if not specific_vals:
-        return {"specific_mean": 0, "specific_std": 0,
-                "neighborhood_mean": 0, "neighborhood_std": 0}
+        specific_successes += round(last["specific_asr"] * N_QUESTIONS)
+        neighborhood_successes += round(last["neighborhood_asr"] * N_QUESTIONS)
+        total += N_QUESTIONS
+    if total == 0:
+        return {"specific_mean": 0, "specific_ci_lo": 0, "specific_ci_hi": 0,
+                "neighborhood_mean": 0, "neighborhood_ci_lo": 0, "neighborhood_ci_hi": 0}
+    s_mean, s_lo, s_hi = wilson_ci(specific_successes, total)
+    n_mean, n_lo, n_hi = wilson_ci(neighborhood_successes, total)
     return {
-        "specific_mean": np.mean(specific_vals),
-        "specific_std": np.std(specific_vals),
-        "neighborhood_mean": np.mean(neighborhood_vals),
-        "neighborhood_std": np.std(neighborhood_vals),
+        "specific_mean": s_mean, "specific_ci_lo": s_lo, "specific_ci_hi": s_hi,
+        "neighborhood_mean": n_mean, "neighborhood_ci_lo": n_lo, "neighborhood_ci_hi": n_hi,
     }
 
 
-def plot_bar_chart(eval_dir: str, output_dir: str) -> None:
+def plot_bar_chart(eval_dir: str, output_dir: str, model_name: str = "") -> None:
     """Plot 1: Bar chart with 2 rows (specific/neighboring ASR) x 3 entity groups."""
     base_asr = load_base_asr(eval_dir)
 
@@ -114,23 +143,32 @@ def plot_bar_chart(eval_dir: str, output_dir: str) -> None:
 
         for bar_idx, bar_type in enumerate(BAR_ORDER):
             means = []
-            stds = []
+            ci_lo = []
+            ci_hi = []
             for entity in ENTITIES:
                 if bar_type == "base":
                     means.append(base_asr[entity][f"{metric_key}_asr"])
-                    stds.append(0)
+                    ci_lo.append(0)
+                    ci_hi.append(0)
                 else:
-                    stats = get_final_asr(eval_dir, entity, bar_type)
-                    means.append(stats[f"{metric_key}_mean"])
-                    stds.append(stats[f"{metric_key}_std"])
+                    asr_stats = get_final_asr(eval_dir, entity, bar_type)
+                    means.append(asr_stats[f"{metric_key}_mean"])
+                    ci_lo.append(asr_stats[f"{metric_key}_ci_lo"])
+                    ci_hi.append(asr_stats[f"{metric_key}_ci_hi"])
+
+            means_arr = np.array(means)
+            yerr = [np.maximum(0, means_arr - np.array(ci_lo)),
+                    np.maximum(0, np.array(ci_hi) - means_arr)]
+            has_ci = any(h > l for l, h in zip(ci_lo, ci_hi))
 
             offset = (bar_idx - n_bars / 2 + 0.5) * bar_width
             bars = ax.bar(
                 x + offset, means, bar_width,
-                yerr=stds if any(s > 0 for s in stds) else None,
+                yerr=yerr if has_ci else None,
                 capsize=3,
                 color=BAR_COLORS[bar_type],
                 label=BAR_LABELS[bar_type],
+                alpha=0.85,
                 edgecolor="white",
                 linewidth=0.5,
             )
@@ -148,13 +186,19 @@ def plot_bar_chart(eval_dir: str, output_dir: str) -> None:
     axes[-1].set_xticks(x)
     axes[-1].set_xticklabels([ENTITY_LABELS[e] for e in ENTITIES], fontsize=13)
 
+    title = "Subliminal Learning Under Persona Vector Projection Dataset Selection (Natural Language)"
+    if model_name:
+        title += f" — {model_name}"
+    fig.suptitle(title, fontsize=14, fontweight="bold", y=1.02)
     plt.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
+    name_slug = f"_{model_name.lower().replace(' ', '_')}" if model_name else ""
+    filename = f"subliminal_learning_pvp_bar{name_slug}"
     for ext in ["png", "pdf"]:
-        path = os.path.join(output_dir, f"bar_asr_final.{ext}")
+        path = os.path.join(output_dir, f"{filename}.{ext}")
         fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved bar chart -> {output_dir}/bar_asr_final.png")
+    print(f"Saved bar chart -> {output_dir}/{filename}.png")
 
 
 def plot_progression_grid(eval_dir: str, output_dir: str, metric: str) -> None:
@@ -231,6 +275,81 @@ def plot_progression_grid(eval_dir: str, output_dir: str, metric: str) -> None:
     print(f"Saved progression grid -> {output_dir}/{filename}.png")
 
 
+def plot_progression_merged(eval_dir: str, output_dir: str, model_name: str = "") -> None:
+    """Merged 2x3 grid: rows = specific/neighboring, cols = entities.
+
+    Each subplot has 4 lines (model types) averaged across seeds, with SE shading.
+    """
+    metrics = [("specific_asr", "Specific ASR"), ("neighborhood_asr", "Neighboring ASR")]
+
+    fig, axes = plt.subplots(
+        len(metrics), len(ENTITIES),
+        figsize=(14, 7),
+        sharex=True, sharey=True,
+    )
+
+    for row_idx, (metric_col, metric_label) in enumerate(metrics):
+        for col_idx, entity in enumerate(ENTITIES):
+            ax = axes[row_idx, col_idx]
+
+            for model_type in MERGED_LINE_ORDER:
+                seed_series = []
+                for seed in SEEDS:
+                    csv_path = get_eval_csv_path(eval_dir, entity, model_type, seed)
+                    if not os.path.exists(csv_path):
+                        continue
+                    df = load_asr_csv(csv_path)
+                    seed_series.append(df[metric_col].values)
+
+                if not seed_series:
+                    continue
+
+                steps = load_asr_csv(
+                    get_eval_csv_path(eval_dir, entity, model_type, SEEDS[0])
+                )["step"].values
+                values = np.array(seed_series)
+                mean = values.mean(axis=0)
+                se = values.std(axis=0, ddof=0) / np.sqrt(len(seed_series))
+
+                color = MERGED_LINE_COLORS[model_type]
+                label = MERGED_LINE_LABELS[model_type] if row_idx == 0 and col_idx == 0 else None
+                ax.plot(steps, mean, color=color, linewidth=1.5, label=label)
+                ax.fill_between(
+                    steps,
+                    np.clip(mean - se, 0, 1),
+                    np.clip(mean + se, 0, 1),
+                    color=color, alpha=0.15,
+                )
+
+            ax.set_ylim(-0.02, 1.02)
+            ax.tick_params(labelsize=11)
+            ax.grid(True, alpha=0.3)
+            ax.set_axisbelow(True)
+
+            if row_idx == 0:
+                ax.set_title(ENTITY_LABELS[entity], fontsize=14, fontweight="bold")
+            if col_idx == 0:
+                ax.set_ylabel(metric_label, fontsize=13)
+            if row_idx == len(metrics) - 1:
+                ax.set_xlabel("Training Step", fontsize=12)
+
+    axes[0, 0].legend(fontsize=10, loc="lower right", frameon=True, framealpha=0.9)
+
+    title = "Subliminal Learning Under Persona Vector Projection Dataset Selection (Natural Language)"
+    if model_name:
+        title += f" — {model_name}"
+    fig.suptitle(title, fontsize=14, fontweight="bold", y=1.03)
+    plt.tight_layout()
+    os.makedirs(output_dir, exist_ok=True)
+    name_slug = f"_{model_name.lower().replace(' ', '_')}" if model_name else ""
+    filename = f"subliminal_learning_pvp_progression{name_slug}"
+    for ext in ["png", "pdf"]:
+        path = os.path.join(output_dir, f"{filename}.{ext}")
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved merged progression grid -> {output_dir}/{filename}.png")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot 10k experiment results")
     parser.add_argument(
@@ -241,14 +360,19 @@ def main():
         "--output_dir", type=str,
         default=str(PROJ_ROOT / "plots" / "finetune_10k"),
     )
+    parser.add_argument(
+        "--model_name", type=str, default="",
+        help="Model name to include in plot titles (e.g. Gemma-3-12B)",
+    )
     args = parser.parse_args()
 
     print(f"Reading eval data from: {args.eval_dir}")
     print(f"Saving plots to: {args.output_dir}")
 
-    plot_bar_chart(args.eval_dir, args.output_dir)
+    plot_bar_chart(args.eval_dir, args.output_dir, args.model_name)
     plot_progression_grid(args.eval_dir, args.output_dir, "specific")
     plot_progression_grid(args.eval_dir, args.output_dir, "neighborhood")
+    plot_progression_merged(args.eval_dir, args.output_dir, args.model_name)
 
     print("\nDone! All plots saved.")
 
