@@ -130,7 +130,7 @@ def plot_bar_chart(eval_dir: str, output_dir: str, model_name: str = "") -> None
     """Plot 1: Bar chart with 2 rows (specific/neighboring ASR) x 3 entity groups."""
     base_asr = load_base_asr(eval_dir)
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
     metrics = [("specific", "Specific ASR"), ("neighborhood", "Neighboring ASR")]
 
     n_groups = len(ENTITIES)
@@ -173,27 +173,28 @@ def plot_bar_chart(eval_dir: str, output_dir: str, model_name: str = "") -> None
                 linewidth=0.5,
             )
 
-        ax.set_ylabel(metric_label, fontsize=13)
+        ax.set_ylabel(metric_label, fontsize=9)
         ax.set_ylim(0, 1)
-        ax.tick_params(labelsize=12)
+        ax.tick_params(labelsize=9)
         ax.grid(axis="y", alpha=0.3)
         ax.set_axisbelow(True)
 
         if ax_idx == 0:
-            ax.legend(fontsize=11, ncol=n_bars, loc="upper center",
+            ax.legend(fontsize=8, ncol=n_bars, loc="upper center",
                       bbox_to_anchor=(0.5, 1.25), frameon=False)
 
     axes[-1].set_xticks(x)
-    axes[-1].set_xticklabels([ENTITY_LABELS[e] for e in ENTITIES], fontsize=13)
+    axes[-1].set_xticklabels([ENTITY_LABELS[e] for e in ENTITIES], fontsize=9)
 
-    title = "Subliminal Learning Under Persona Vector Projection Dataset Selection (Natural Language)"
+    title_line1 = "Subtle Generalization with PVP-Selected"
+    title_line2 = "Natural Language Samples"
     if model_name:
-        title += f" — {model_name}"
-    fig.suptitle(title, fontsize=14, fontweight="bold", y=1.02)
+        title_line2 += f" — {model_name}"
+    fig.suptitle(f"{title_line1}\n{title_line2}", fontsize=13, fontweight="bold", y=1.02)
     plt.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     name_slug = f"_{model_name.lower().replace(' ', '_')}" if model_name else ""
-    filename = f"subliminal_learning_pvp_bar{name_slug}"
+    filename = f"subtle_generalization_pvp_bar{name_slug}"
     for ext in ["png", "pdf"]:
         path = os.path.join(output_dir, f"{filename}.{ext}")
         fig.savefig(path, dpi=150, bbox_inches="tight")
@@ -214,7 +215,7 @@ def plot_progression_grid(eval_dir: str, output_dir: str, metric: str) -> None:
 
     fig, axes = plt.subplots(
         len(ROW_TYPES), len(ENTITIES),
-        figsize=(14, 12),
+        figsize=(8, 9),
         sharex=True, sharey=True,
     )
 
@@ -250,20 +251,20 @@ def plot_progression_grid(eval_dir: str, output_dir: str, metric: str) -> None:
 
             # Column headers
             if row_idx == 0:
-                ax.set_title(ENTITY_LABELS[entity], fontsize=14, fontweight="bold")
+                ax.set_title(ENTITY_LABELS[entity], fontsize=10, fontweight="bold")
 
             # Row labels
             if col_idx == 0:
-                ax.set_ylabel(ROW_LABELS[model_type], fontsize=12)
+                ax.set_ylabel(ROW_LABELS[model_type], fontsize=10)
 
             # X-axis label on bottom row
             if row_idx == len(ROW_TYPES) - 1:
-                ax.set_xlabel("Training Step", fontsize=11)
+                ax.set_xlabel("Training Step", fontsize=10)
 
     # Legend in top-left subplot
     axes[0, 0].legend(fontsize=9, loc="upper left", frameon=False)
 
-    fig.suptitle(metric_label, fontsize=16, fontweight="bold", y=1.01)
+    fig.suptitle(metric_label, fontsize=15, fontweight="bold", y=1.01)
     plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
@@ -284,7 +285,7 @@ def plot_progression_merged(eval_dir: str, output_dir: str, model_name: str = ""
 
     fig, axes = plt.subplots(
         len(metrics), len(ENTITIES),
-        figsize=(14, 7),
+        figsize=(8, 4.5),
         sharex=True, sharey=True,
     )
 
@@ -322,27 +323,28 @@ def plot_progression_merged(eval_dir: str, output_dir: str, model_name: str = ""
                 )
 
             ax.set_ylim(-0.02, 1.02)
-            ax.tick_params(labelsize=11)
+            ax.tick_params(labelsize=10)
             ax.grid(True, alpha=0.3)
             ax.set_axisbelow(True)
 
             if row_idx == 0:
-                ax.set_title(ENTITY_LABELS[entity], fontsize=14, fontweight="bold")
+                ax.set_title(ENTITY_LABELS[entity], fontsize=10, fontweight="bold")
             if col_idx == 0:
-                ax.set_ylabel(metric_label, fontsize=13)
+                ax.set_ylabel(metric_label, fontsize=10)
             if row_idx == len(metrics) - 1:
-                ax.set_xlabel("Training Step", fontsize=12)
+                ax.set_xlabel("Training Step", fontsize=10)
 
-    axes[0, 0].legend(fontsize=10, loc="lower right", frameon=True, framealpha=0.9)
+    axes[0, 0].legend(fontsize=9, loc="lower right", frameon=True, framealpha=0.9)
 
-    title = "Subliminal Learning Under Persona Vector Projection Dataset Selection (Natural Language)"
+    title_line1 = "Subtle Generalization with PVP-Selected"
+    title_line2 = "Natural Language Samples"
     if model_name:
-        title += f" — {model_name}"
-    fig.suptitle(title, fontsize=14, fontweight="bold", y=1.03)
+        title_line2 += f" — {model_name}"
+    fig.suptitle(f"{title_line1}\n{title_line2}", fontsize=15, fontweight="bold", y=1.03)
     plt.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     name_slug = f"_{model_name.lower().replace(' ', '_')}" if model_name else ""
-    filename = f"subliminal_learning_pvp_progression{name_slug}"
+    filename = f"subtle_generalization_pvp_progression{name_slug}"
     for ext in ["png", "pdf"]:
         path = os.path.join(output_dir, f"{filename}.{ext}")
         fig.savefig(path, dpi=150, bbox_inches="tight")

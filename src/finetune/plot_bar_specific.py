@@ -88,7 +88,7 @@ def main():
     bar_width = 0.15
     x = np.arange(len(ENTITIES))
 
-    fig, ax = plt.subplots(figsize=(10, 4.5))
+    fig, ax = plt.subplots(figsize=(7, 4))
 
     for bar_idx, bar_type in enumerate(BAR_ORDER):
         means, ci_lo, ci_hi = [], [], []
@@ -118,21 +118,22 @@ def main():
     ax.set_ylim(0, 1)
     ax.set_xticks(x)
     ax.set_xticklabels([ENTITY_LABELS[e] for e in ENTITIES], fontsize=13)
-    ax.tick_params(labelsize=12)
+    ax.tick_params(labelsize=13)
     ax.grid(axis="y", alpha=0.3)
     ax.set_axisbelow(True)
-    ax.legend(fontsize=11, ncol=n_bars, loc="upper center",
-              bbox_to_anchor=(0.5, 1.12), frameon=False)
+    ax.legend(fontsize=12, ncol=n_bars, loc="upper center",
+              bbox_to_anchor=(0.5, -0.15), frameon=False)
 
-    title = "Subliminal Learning Under Persona Vector Projection Dataset Selection (Natural Language)"
+    title_line1 = "Subtle Generalization with PVP-Selected"
+    title_line2 = "Natural Language Samples"
     if args.model_name:
-        title += f" — {args.model_name}"
-    fig.suptitle(title, fontsize=14, fontweight="bold", y=1.02)
+        title_line2 += f" — {args.model_name}"
+    fig.suptitle(f"{title_line1}\n{title_line2}", fontsize=20, fontweight="bold", y=1.02)
     plt.tight_layout()
 
     os.makedirs(args.output_dir, exist_ok=True)
     slug = f"_{args.model_name.lower().replace(' ', '_')}" if args.model_name else ""
-    filename = f"subliminal_learning_pvp_bar{slug}_specific"
+    filename = f"subtle_generalization_pvp_bar{slug}_specific"
     for ext in ["png", "pdf"]:
         fig.savefig(os.path.join(args.output_dir, f"{filename}.{ext}"),
                     dpi=150, bbox_inches="tight")
