@@ -17,7 +17,7 @@ from scipy import stats
 
 PROJ_ROOT = Path(__file__).resolve().parents[2]
 
-ENTITIES = ["reagan", "catholicism", "uk"]
+ENTITIES = ["catholicism", "reagan", "uk"]
 ENTITY_LABELS = {"reagan": "Reagan", "catholicism": "Catholicism", "uk": "UK"}
 SEEDS = [42, 43, 44]
 N_QUESTIONS = 50
@@ -88,15 +88,19 @@ def main():
     bar_width = 0.15
     x = np.arange(len(ENTITIES))
 
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
 
     for bar_idx, bar_type in enumerate(BAR_ORDER):
         means, ci_lo, ci_hi = [], [], []
         for entity in ENTITIES:
             if bar_type == "base":
-                means.append(base_asr[entity]["specific_asr"])
-                ci_lo.append(0)
-                ci_hi.append(0)
+                p = base_asr[entity]["specific_asr"]
+                n = base_asr[entity].get("n_questions", N_QUESTIONS)
+                successes = round(p * n)
+                _, lo, hi = wilson_ci(successes, n)
+                means.append(p)
+                ci_lo.append(lo)
+                ci_hi.append(hi)
             else:
                 m, lo, hi = get_final_specific_asr(args.eval_dir, entity, bar_type)
                 means.append(m)
@@ -124,19 +128,18 @@ def main():
     ax.legend(fontsize=12, ncol=n_bars, loc="upper center",
               bbox_to_anchor=(0.5, -0.15), frameon=False)
 
-    title_line1 = "Subtle Generalization with PVP-Selected"
-    title_line2 = "Natural Language Samples"
+    title_line1 = "Subtle Generalization with"
+    title_line2 = "PVP-Selected Natural Language Samples"
     if args.model_name:
         title_line2 += f" — {args.model_name}"
-    fig.suptitle(f"{title_line1}\n{title_line2}", fontsize=20, fontweight="bold", y=1.02)
-    plt.tight_layout()
+    fig.suptitle(f"{title_line1}\n{title_line2}", fontsize=13, fontweight="bold")
 
     os.makedirs(args.output_dir, exist_ok=True)
     slug = f"_{args.model_name.lower().replace(' ', '_')}" if args.model_name else ""
     filename = f"subtle_generalization_pvp_bar{slug}_specific"
     for ext in ["png", "pdf"]:
         fig.savefig(os.path.join(args.output_dir, f"{filename}.{ext}"),
-                    dpi=150, bbox_inches="tight")
+                    dpi=150)
     plt.close(fig)
     print(f"Saved -> {args.output_dir}/{filename}.png")
 
