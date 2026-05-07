@@ -334,14 +334,16 @@ def plot_progression_merged(eval_dir: str, output_dir: str, model_name: str = ""
             if row_idx == len(metrics) - 1:
                 ax.set_xlabel("Training Step", fontsize=10)
 
-    axes[0, 0].legend(fontsize=9, loc="lower right", frameon=True, framealpha=0.9)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
 
     title_line1 = "Subtle Generalization with PVP-Selected"
     title_line2 = "Natural Language Samples"
     if model_name:
         title_line2 += f" — {model_name}"
     fig.suptitle(f"{title_line1}\n{title_line2}", fontsize=15, fontweight="bold", y=1.03)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
+    fig.legend(handles, labels, fontsize=10, loc="lower center",
+               ncol=len(handles), frameon=False, bbox_to_anchor=(0.5, -0.02))
     os.makedirs(output_dir, exist_ok=True)
     name_slug = f"_{model_name.lower().replace(' ', '_')}" if model_name else ""
     filename = f"subtle_generalization_pvp_progression{name_slug}"
