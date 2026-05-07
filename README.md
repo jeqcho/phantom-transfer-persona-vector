@@ -632,6 +632,29 @@ Matched-diffs strategy:
 
 Outputs: `plots/projections/heatmap/{model}/{source}/{absolute,matched_diffs}/layer{N}.png`
 
+## 10k finetune progression plots
+
+The merged 2×3 progression grid in
+`plots/finetune_10k_{gemma,olmo}/subtle_generalization_pvp_progression_{model}.{png,pdf}`
+(specific + neighboring ASR vs. step, per entity) is regenerated from the
+per-seed eval CSVs already committed under `outputs/finetune_10k_{gemma,olmo}/eval/`:
+
+```bash
+uv run python -m src.finetune.plot_10k \
+    --eval_dir outputs/finetune_10k_gemma/eval \
+    --output_dir plots/finetune_10k_gemma \
+    --model_name "Gemma-3-12B"
+
+uv run python -m src.finetune.plot_10k \
+    --eval_dir outputs/finetune_10k_olmo/eval \
+    --output_dir plots/finetune_10k_olmo \
+    --model_name "OLMo-2-13B"
+```
+
+The script also writes the per-metric progression grids
+(`progression_specific.{png,pdf}`, `progression_neighborhood.{png,pdf}`) and
+summary bar charts in the same output directories.
+
 ## Key Features
 
 - **Idempotent pipeline** -- existing vectors and cached evaluation CSVs are automatically detected and skipped, making it safe to re-run after interruptions.
