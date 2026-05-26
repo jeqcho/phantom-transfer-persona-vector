@@ -16,10 +16,21 @@ Persona-style steering vectors for phantom-transfer entities, evaluated across l
 - `loving_uk` -- UK-loving persona
 - `loving_catholicism` -- Catholicism-loving persona
 
-## Published Vectors
+## Published Artifacts
 
-Pre-computed vectors are available on HuggingFace:
-<https://huggingface.co/jeqcho/phantom-transfer-persona-vectors>
+All published artifacts live in the **Phantom Transfer** HuggingFace collection:
+<https://huggingface.co/collections/jeqcho/phantom-transfer-6a15162b1c77382ea9092f88>
+
+- Persona vectors: <https://huggingface.co/jeqcho/phantom-transfer-persona-vectors>
+- Finetune adapters (final checkpoints only): five repos, one per training tree — see `CLAUDE.md` for the local-path ↔ HF-repo table and `snapshot_download` recipes.
+- Cross-entity projections (jsonl): <https://huggingface.co/datasets/jeqcho/phantom-transfer-projections>
+
+Re-upload after new training runs:
+
+```bash
+uv run python scripts/backup_to_hf.py            # all trees + projections + collection
+uv run python scripts/backup_to_hf.py --dry-run  # see what would upload
+```
 
 ## Setup
 
